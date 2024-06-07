@@ -2,6 +2,7 @@
 #define SURGE_MODULE_FLAPPY_BIRD_HPP
 
 // clang-format off
+#include "player/options.hpp"
 #include "player/window.hpp"
 // clang-format on
 

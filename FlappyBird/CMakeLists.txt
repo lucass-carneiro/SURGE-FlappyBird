@@ -17,11 +17,14 @@ project(
 set(
   SURGE_MODULE_FLAPPY_BIRD_HEADER_LIST
   "${PROJECT_SOURCE_DIR}/include/flappy_bird.hpp"
+  "${PROJECT_SOURCE_DIR}/include/state_machine.hpp"
+  "${PROJECT_SOURCE_DIR}/include/type_aliases.hpp"
 )
 
 set(
   SURGE_MODULE_FLAPPY_BIRD_SOURCE_LIST
   "${PROJECT_SOURCE_DIR}/src/flappy_bird.cpp"
+  "${PROJECT_SOURCE_DIR}/src/state_machine.cpp"
 )
 
 #if(CMAKE_BUILD_TYPE STREQUAL "Debug")

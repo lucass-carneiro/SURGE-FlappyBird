@@ -23,6 +23,9 @@ namespace fpb {
 auto bind_callbacks(GLFWwindow *window) noexcept -> int;
 auto unbind_callbacks(GLFWwindow *window) noexcept -> int;
 
+auto update_bird_animation(double dt) noexcept -> glm::vec4;
+auto update_bird_model(GLFWwindow *window, double dt) -> glm::mat4;
+
 } // namespace fpb
 
 extern "C" {

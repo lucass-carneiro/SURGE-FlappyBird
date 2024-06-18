@@ -1,10 +1,14 @@
 #ifndef SURGE_MODULE_FLAPPY_BIRD_HPP
 #define SURGE_MODULE_FLAPPY_BIRD_HPP
 
+#include "state_machine.hpp"
+
 // clang-format off
 #include "player/options.hpp"
 #include "player/window.hpp"
 // clang-format on
+
+#include <optional>
 
 #if defined(SURGE_COMPILER_Clang)                                                                  \
     || defined(SURGE_COMPILER_GCC) && COMPILING_SURGE_MODULE_FLAPPY_BIRD
@@ -19,12 +23,15 @@
 
 namespace fpb {
 
-// Callbacks
 auto bind_callbacks(GLFWwindow *window) noexcept -> int;
 auto unbind_callbacks(GLFWwindow *window) noexcept -> int;
 
-auto update_bird_animation(double dt) noexcept -> glm::vec4;
-auto update_bird_model(GLFWwindow *window, double dt) -> glm::mat4;
+void state_transition() noexcept;
+void state_update(GLFWwindow *window, double dt) noexcept;
+
+void update_state_prepare(GLFWwindow *window, double dt) noexcept;
+void update_state_play(GLFWwindow *window, double dt) noexcept;
+void update_state_score(GLFWwindow *window, double dt) noexcept;
 
 } // namespace fpb
 

@@ -102,47 +102,57 @@ void fpb::state_update(GLFWwindow *window, double dt) noexcept {
 void fpb::update_state_prepare(GLFWwindow *window, double dt) noexcept {
   using namespace surge;
   using namespace surge::atom;
+  using std::fabs;
 
   // Window dims
   const auto [ww, wh] = window::get_dims(window);
 
   // Texture handles
+  static const auto base_texture{globals::tdb.find("resources/static/base.png").value_or(0)};
   static const auto bckg_texture{
       globals::tdb.find("resources/static/background-day.png").value_or(0)};
   static const auto bird_sheet{globals::tdb.find("resources/sheets/bird_red.png").value_or(0)};
-
-  // Background model
-  const auto bckg_model{sprite::place(glm::vec2{0.0f}, glm::vec2{ww, wh}, 0.1f)};
 
   // Database reset
   globals::sdb.reset();
 
   // Background
+  const auto bckg_model{sprite::place(glm::vec2{0.0f}, glm::vec2{ww, wh}, 0.1f)};
   globals::sdb.add(bckg_texture, bckg_model, 1.0);
 
-  // Bird position (Velocity Verlet update)
+  // Rolling base
   const auto fdt{static_cast<float>(dt)};
   const auto dt2{static_cast<float>(dt * dt)};
 
+  static float base_x{0.0f};
+
+  if (base_x > -ww) {
+    base_x -= 100.0f * fdt;
+  } else {
+    base_x = 0.0f;
+  }
+
+  const auto base_model{
+      sprite::place(glm::vec2{base_x, 400.0f}, glm::vec2{ww * 2.0f, 112.0f}, 0.2f)};
+  globals::sdb.add(base_texture, base_model, 1.0);
+
+  // Bird position (Velocity Verlet update)
   const glm::vec2 bbox_size{34.0f, 24.0f};
   const auto x0{ww / 2.0f - bbox_size[0] / 2.0f};
   const auto y0{wh / 2.0f - bbox_size[1] / 2.0f};
 
-  static float y_n{y0};
+  static float y_n{y0 - 5.0f};
   static float vy_n{0.0f};
 
-  // auto a = [&](float y) -> float { return -50.0f * (y - y0); };
-  auto a = [&](float) -> float {
-    // return (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) ? -100.0f : 50.0f;
-    return 50.0f - 1.0f * vy_n;
-  };
+  // g = 600. vy = -200
+  const auto a = [&](float y) -> float { return -50.0f * (y - y0); };
   const auto a_n{a(y_n)};
 
   y_n = y_n + vy_n * fdt + 0.5f * a_n * dt2;
   const auto a_np1{a(y_n)};
   vy_n = vy_n + 0.5f * (a_n + a_np1) * fdt;
 
-  const auto bird_model{sprite::place(glm::vec2{x0, y_n}, bbox_size, 0.2f)};
+  const auto bird_model{sprite::place(glm::vec2{x0, y_n}, bbox_size, 0.3f)};
 
   // Bird flap
   const std::array<glm::vec4, 4> frame_views{
@@ -167,9 +177,94 @@ void fpb::update_state_prepare(GLFWwindow *window, double dt) noexcept {
 
   // Push to database
   globals::sdb.add_view(bird_sheet, bird_model, bird_frame_view, glm::vec2{141.0f, 26.0f}, 1.0f);
+
+  // State transition
+  if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+    globals::state_b = state::play;
+  }
 }
 
-void fpb::update_state_play(GLFWwindow *, double) noexcept {}
+void fpb::update_state_play(GLFWwindow *window, double dt) noexcept {
+  using namespace surge;
+  using namespace surge::atom;
+  using std::fabs;
+
+  // Window dims
+  const auto [ww, wh] = window::get_dims(window);
+
+  // Texture handles
+  static const auto base_texture{globals::tdb.find("resources/static/base.png").value_or(0)};
+  static const auto bckg_texture{
+      globals::tdb.find("resources/static/background-day.png").value_or(0)};
+  static const auto bird_sheet{globals::tdb.find("resources/sheets/bird_red.png").value_or(0)};
+
+  // Database reset
+  globals::sdb.reset();
+
+  // Background
+  const auto bckg_model{sprite::place(glm::vec2{0.0f}, glm::vec2{ww, wh}, 0.1f)};
+  globals::sdb.add(bckg_texture, bckg_model, 1.0);
+
+  // Rolling base
+  const auto fdt{static_cast<float>(dt)};
+  const auto dt2{static_cast<float>(dt * dt)};
+
+  static float base_x{0.0f};
+
+  if (base_x > -ww) {
+    base_x -= 100.0f * fdt;
+  } else {
+    base_x = 0.0f;
+  }
+
+  const auto base_model{
+      sprite::place(glm::vec2{base_x, 400.0f}, glm::vec2{ww * 2.0f, 112.0f}, 0.2f)};
+  globals::sdb.add(base_texture, base_model, 1.0);
+
+  // Bird position (Velocity Verlet update)
+  const glm::vec2 bbox_size{34.0f, 24.0f};
+  const auto x0{ww / 2.0f - bbox_size[0] / 2.0f};
+  const auto y0{wh / 2.0f - bbox_size[1] / 2.0f};
+
+  static float y_n{y0 - 10.0f};
+  static float vy_n{0.0f};
+
+  const float a_n{800.0f};
+  const float a_np1{a_n};
+
+  if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+    vy_n = -180.0f;
+  }
+
+  y_n = y_n + vy_n * fdt + 0.5f * a_n * dt2;
+  vy_n = vy_n + 0.5f * (a_n + a_np1) * fdt;
+
+  const auto bird_model{sprite::place(glm::vec2{x0, y_n}, bbox_size, 0.2f)};
+
+  // Bird flap animation
+  const std::array<glm::vec4, 4> frame_views{
+      glm::vec4{1.0f, 1.0f, 34.0f, 24.0f}, glm::vec4{36.0f, 1.0f, 34.0f, 24.0f},
+      glm::vec4{71.0f, 1.0f, 34.0f, 24.0f}, glm::vec4{106.0f, 1.0f, 34.0f, 24.0f}};
+
+  const double frame_rate{10.0};
+  const double wait_time{1.0 / frame_rate};
+
+  static surge::u8 frame_idx{0};
+  static double elapsed{0};
+
+  if (elapsed > wait_time) {
+    frame_idx++;
+    frame_idx %= 4;
+    elapsed = 0;
+  } else {
+    elapsed += dt;
+  }
+
+  const auto bird_frame_view{frame_views[frame_idx]}; // NOLINT
+
+  // Push to database
+  globals::sdb.add_view(bird_sheet, bird_model, bird_frame_view, glm::vec2{141.0f, 26.0f}, 1.0f);
+}
 
 void fpb::update_state_score(GLFWwindow *, double) noexcept {}
 
@@ -209,7 +304,8 @@ extern "C" SURGE_MODULE_EXPORT auto on_load(GLFWwindow *window) noexcept -> int 
   // All textures
   texture::create_info ci{};
   ci.filtering = renderer::texture_filtering::nearest;
-  globals::tdb.add(ci, "resources/static/background-day.png", "resources/sheets/bird_red.png");
+  globals::tdb.add(ci, "resources/static/base.png", "resources/static/background-day.png",
+                   "resources/sheets/bird_red.png");
 
   // First state
   globals::state_b = fpb::state::prepare;

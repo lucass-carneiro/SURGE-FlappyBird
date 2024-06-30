@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
 # -----------------------------------------
 # Project
@@ -16,33 +16,14 @@ project(
 
 set(
   SURGE_MODULE_FLAPPY_BIRD_HEADER_LIST
+  "${SurgeCore_SOURCE_DIR}/include/surge_core.hpp"
+
   "${PROJECT_SOURCE_DIR}/include/flappy_bird.hpp"
-  "${PROJECT_SOURCE_DIR}/include/state_machine.hpp"
-  "${PROJECT_SOURCE_DIR}/include/type_aliases.hpp"
 )
 
 set(
   SURGE_MODULE_FLAPPY_BIRD_SOURCE_LIST
   "${PROJECT_SOURCE_DIR}/src/flappy_bird.cpp"
-  "${PROJECT_SOURCE_DIR}/src/state_machine.cpp"
-)
-
-#if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-#  list(APPEND SURGE_MODULE_FLAPPY_BIRD_HEADER_LIST "${PROJECT_SOURCE_DIR}/include/debug_window.hpp")
-#  list(APPEND SURGE_MODULE_FLAPPY_BIRD_SOURCE_LIST "${PROJECT_SOURCE_DIR}/src/debug_window.cpp")
-#endif()
-
-# -----------------------------------------
-# Link Target
-# -----------------------------------------
-
-# This target creates links to the player include files in the
-# module source tree. This avoids name conflicts between includes
-
-add_custom_target(
-  link_player_includes
-  ALL
-  COMMAND ${CMAKE_COMMAND} -E create_symlink ${SurgePlayer_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/include/player
 )
 
 # -----------------------------------------
@@ -58,6 +39,12 @@ set_target_properties(SurgeFlappyBird PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
 target_compile_definitions(SurgeFlappyBird PUBLIC COMPILING_SURGE_MODULE_FLAPPY_BIRD)
 
+target_include_directories(
+  SurgeFlappyBird PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}-${PROJECT_VERSION}>
+)
+
 # Enables __VA_OPT__ on msvc
 if(SURGE_COMPILER_FLAG_STYLE MATCHES "msvc")
     target_compile_options(SurgeFlappyBird PUBLIC /Zc:preprocessor)
@@ -72,14 +59,6 @@ endif()
 if(SURGE_COMPILER_FLAG_STYLE MATCHES "msvc")
     target_compile_options(SurgeFlappyBird PUBLIC /D NOMINMAX)
 endif()
-
-target_include_directories(
-  SurgeFlappyBird PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAME}-${PROJECT_VERSION}>
-)
-
-target_include_directories(SurgeFlappyBird PRIVATE ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include)
 
 # -----------------------------------------
 # Compilers flags and options
@@ -185,12 +164,7 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   if(SURGE_COMPILER_FLAG_STYLE MATCHES "msvc")
-    message(WARNING ${VCPKG_LIBRARY_LINKAGE})
-    if(VCPKG_TARGET_TRIPLET MATCHES "x64-windows-static") #TODO: This is not general and static releases do not work
-      target_compile_options(SurgeFlappyBird PUBLIC /MP /MT)
-    else()
-      target_compile_options(SurgeFlappyBird PUBLIC /MP /MD)
-    endif()
+  target_compile_options(Surge2048 PUBLIC /MP /MD)  
   endif()
 endif()
 
@@ -199,7 +173,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Profile")
     target_compile_options(SurgeFlappyBird PUBLIC -g3 -ggdb3 -fno-omit-frame-pointer)
     target_link_options(SurgeFlappyBird PUBLIC -g3 -ggdb3 -fno-omit-frame-pointer -rdynamic)
   else()
-    target_compile_options(SurgeFlappyBird PUBLIC /MP /MD)
+    target_compile_options(SurgeFlappyBird PUBLIC /MP /MDd)
     target_link_options(SurgeFlappyBird PUBLIC /DEBUG:FULL)
   endif()
 
@@ -211,4 +185,4 @@ endif()
 # -----------------------------------------
 # Link and build order dependencies
 # -----------------------------------------
-target_link_libraries(SurgeFlappyBird PUBLIC SurgePlayer)
+target_link_libraries(SurgeFlappyBird PUBLIC SurgeCore)

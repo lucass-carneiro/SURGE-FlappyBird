@@ -1,74 +1,19 @@
 #include "flappy_bird.hpp"
 
-#include "type_aliases.hpp"
-
-//clang-format off
-#include "player/error_types.hpp"
-#include "player/logging.hpp"
-// clang-format on
-
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/glm.hpp>
-
 namespace globals {
 
-static fpb::tdb_t tdb{};      // NOLINT
-static fpb::pvubo_t pv_ubo{}; // NOLINT
-static fpb::sdb_t sdb{};      // NOLINT
+static fpb::tdb_t tdb{};                    // NOLINT
+static fpb::pvubo_t pv_ubo{};               // NOLINT
+static fpb::sdb_t sdb{};                    // NOLINT
 
-static fpb::state state_a{}; // NOLINT
-static fpb::state state_b{}; // NOLINT
+static fpb::state_machine::state state_a{}; // NOLINT
+static fpb::state_machine::state state_b{}; // NOLINT
 
 } // namespace globals
 
-auto fpb::bind_callbacks(GLFWwindow *window) noexcept -> int {
-  log_info("Binding interaction callbacks");
-
-  glfwSetKeyCallback(window, keyboard_event);
-  if (glfwGetError(nullptr) != GLFW_NO_ERROR) {
-    log_warn("Unable to bind keyboard event callback");
-    return static_cast<int>(surge::error::keyboard_event_unbinding);
-  }
-
-  glfwSetMouseButtonCallback(window, mouse_button_event);
-  if (glfwGetError(nullptr) != GLFW_NO_ERROR) {
-    log_warn("Unable to bind mouse button event callback");
-    return static_cast<int>(surge::error::mouse_button_event_unbinding);
-  }
-
-  glfwSetScrollCallback(window, mouse_scroll_event);
-  if (glfwGetError(nullptr) != GLFW_NO_ERROR) {
-    log_warn("Unable to bind mouse scroll event callback");
-    return static_cast<int>(surge::error::mouse_scroll_event_unbinding);
-  }
-
-  return 0;
-}
-
-auto fpb::unbind_callbacks(GLFWwindow *window) noexcept -> int {
-  log_info("Unbinding interaction callbacks");
-
-  glfwSetKeyCallback(window, nullptr);
-  if (glfwGetError(nullptr) != GLFW_NO_ERROR) {
-    log_warn("Unable to unbind keyboard event callback");
-  }
-
-  glfwSetMouseButtonCallback(window, nullptr);
-  if (glfwGetError(nullptr) != GLFW_NO_ERROR) {
-    log_warn("Unable to unbind mouse button event callback");
-  }
-
-  glfwSetScrollCallback(window, nullptr);
-  if (glfwGetError(nullptr) != GLFW_NO_ERROR) {
-    log_warn("Unable to unbind mouse scroll event callback");
-  }
-
-  return 0;
-}
-
 void fpb::state_transition() noexcept {
   using namespace globals;
+  using namespace fpb::state_machine;
 
   const auto a_empty_b_empty{state_a == state::no_state && state_b == state::no_state};
   const auto a_full_b_empty{state_a != state::no_state && state_b == state::no_state};
@@ -79,19 +24,21 @@ void fpb::state_transition() noexcept {
   }
 }
 
-void fpb::state_update(GLFWwindow *window, double dt) noexcept {
+void fpb::state_update(double dt) noexcept {
+  using namespace fpb::state_machine;
+
   switch (globals::state_a) {
 
   case state::prepare:
-    update_state_prepare(window, dt);
+    update_state_prepare(dt);
     break;
 
   case state::play:
-    update_state_play(window, dt);
+    update_state_play(dt);
     break;
 
   case state::score:
-    update_state_score(window, dt);
+    update_state_score(dt);
     break;
 
   default:
@@ -99,13 +46,14 @@ void fpb::state_update(GLFWwindow *window, double dt) noexcept {
   }
 }
 
-void fpb::update_state_prepare(GLFWwindow *window, double dt) noexcept {
+void fpb::update_state_prepare(double dt) noexcept {
   using namespace surge;
-  using namespace surge::atom;
+  using namespace surge::gl_atom;
+  using namespace fpb::state_machine;
   using std::fabs;
 
   // Window dims
-  const auto [ww, wh] = window::get_dims(window);
+  const auto dims{window::get_dims()};
 
   // Texture handles
   static const auto base_texture{globals::tdb.find("resources/static/base.png").value_or(0)};
@@ -117,7 +65,7 @@ void fpb::update_state_prepare(GLFWwindow *window, double dt) noexcept {
   globals::sdb.reset();
 
   // Background
-  const auto bckg_model{sprite::place(glm::vec2{0.0f}, glm::vec2{ww, wh}, 0.1f)};
+  const auto bckg_model{sprite::place(glm::vec2{0.0f}, dims, 0.1f)};
   globals::sdb.add(bckg_texture, bckg_model, 1.0);
 
   // Rolling base
@@ -126,20 +74,20 @@ void fpb::update_state_prepare(GLFWwindow *window, double dt) noexcept {
 
   static float base_x{0.0f};
 
-  if (base_x > -ww) {
+  if (base_x > -dims[0]) {
     base_x -= 100.0f * fdt;
   } else {
     base_x = 0.0f;
   }
 
   const auto base_model{
-      sprite::place(glm::vec2{base_x, 400.0f}, glm::vec2{ww * 2.0f, 112.0f}, 0.2f)};
+      sprite::place(glm::vec2{base_x, 400.0f}, glm::vec2{dims[0] * 2.0f, 112.0f}, 0.2f)};
   globals::sdb.add(base_texture, base_model, 1.0);
 
   // Bird position (Velocity Verlet update)
   const glm::vec2 bbox_size{34.0f, 24.0f};
-  const auto x0{ww / 2.0f - bbox_size[0] / 2.0f};
-  const auto y0{wh / 2.0f - bbox_size[1] / 2.0f};
+  const auto x0{dims[0] / 2.0f - bbox_size[0] / 2.0f};
+  const auto y0{dims[1] / 2.0f - bbox_size[1] / 2.0f};
 
   static float y_n{y0 - 5.0f};
   static float vy_n{0.0f};
@@ -179,18 +127,18 @@ void fpb::update_state_prepare(GLFWwindow *window, double dt) noexcept {
   globals::sdb.add_view(bird_sheet, bird_model, bird_frame_view, glm::vec2{141.0f, 26.0f}, 1.0f);
 
   // State transition
-  if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+  if (window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
     globals::state_b = state::play;
   }
 }
 
-void fpb::update_state_play(GLFWwindow *window, double dt) noexcept {
+void fpb::update_state_play(double dt) noexcept {
   using namespace surge;
-  using namespace surge::atom;
+  using namespace surge::gl_atom;
   using std::fabs;
 
   // Window dims
-  const auto [ww, wh] = window::get_dims(window);
+  const auto dims{window::get_dims()};
 
   // Texture handles
   static const auto base_texture{globals::tdb.find("resources/static/base.png").value_or(0)};
@@ -202,7 +150,7 @@ void fpb::update_state_play(GLFWwindow *window, double dt) noexcept {
   globals::sdb.reset();
 
   // Background
-  const auto bckg_model{sprite::place(glm::vec2{0.0f}, glm::vec2{ww, wh}, 0.1f)};
+  const auto bckg_model{sprite::place(glm::vec2{0.0f}, dims, 0.1f)};
   globals::sdb.add(bckg_texture, bckg_model, 1.0);
 
   // Rolling base
@@ -211,20 +159,20 @@ void fpb::update_state_play(GLFWwindow *window, double dt) noexcept {
 
   static float base_x{0.0f};
 
-  if (base_x > -ww) {
+  if (base_x > -dims[0]) {
     base_x -= 100.0f * fdt;
   } else {
     base_x = 0.0f;
   }
 
   const auto base_model{
-      sprite::place(glm::vec2{base_x, 400.0f}, glm::vec2{ww * 2.0f, 112.0f}, 0.2f)};
+      sprite::place(glm::vec2{base_x, 400.0f}, glm::vec2{dims[0] * 2.0f, 112.0f}, 0.2f)};
   globals::sdb.add(base_texture, base_model, 1.0);
 
   // Bird position (Velocity Verlet update)
   const glm::vec2 bbox_size{34.0f, 24.0f};
-  const auto x0{ww / 2.0f - bbox_size[0] / 2.0f};
-  const auto y0{wh / 2.0f - bbox_size[1] / 2.0f};
+  const auto x0{dims[0] / 2.0f - bbox_size[0] / 2.0f};
+  const auto y0{dims[1] / 2.0f - bbox_size[1] / 2.0f};
 
   static float y_n{y0 - 10.0f};
   static float vy_n{0.0f};
@@ -232,7 +180,7 @@ void fpb::update_state_play(GLFWwindow *window, double dt) noexcept {
   const float a_n{800.0f};
   const float a_np1{a_n};
 
-  if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+  if (window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
     vy_n = -180.0f;
   }
 
@@ -266,18 +214,37 @@ void fpb::update_state_play(GLFWwindow *window, double dt) noexcept {
   globals::sdb.add_view(bird_sheet, bird_model, bird_frame_view, glm::vec2{141.0f, 26.0f}, 1.0f);
 }
 
-void fpb::update_state_score(GLFWwindow *, double) noexcept {}
+void fpb::update_state_score(double) noexcept {}
 
-extern "C" SURGE_MODULE_EXPORT auto on_load(GLFWwindow *window) noexcept -> int {
-  using namespace fpb;
-  using namespace surge;
-  using namespace surge::atom;
+auto fpb::state_machine::state_to_str(state s) noexcept -> const char * {
+  using namespace fpb::state_machine;
 
-  // Bind callbacks
-  const auto bind_callback_stat{bind_callbacks(window)};
-  if (bind_callback_stat != 0) {
-    return bind_callback_stat;
+  switch (s) {
+  case state::no_state:
+    return "no state";
+
+  case state::prepare:
+    return "prepare";
+
+  case state::play:
+    return "play";
+
+  case state::score:
+    return "score";
+
+  case state::count:
+    return "count";
+
+  default:
+    return "unknown state";
   }
+}
+
+extern "C" SURGE_MODULE_EXPORT auto on_load() noexcept -> int {
+  using namespace surge;
+  using namespace surge::gl_atom;
+  using namespace fpb;
+  using namespace fpb::state_machine;
 
   // Texture database
   globals::tdb = texture::database::create(128);
@@ -291,8 +258,8 @@ extern "C" SURGE_MODULE_EXPORT auto on_load(GLFWwindow *window) noexcept -> int 
   globals::sdb = *sdb;
 
   // Initialize global 2D projection matrix and view matrix
-  const auto [ww, wh] = window::get_dims(window);
-  const auto projection{glm::ortho(0.0f, ww, wh, 0.0f, 0.0f, 1.0f)};
+  const auto dims{window::get_dims()};
+  const auto projection{glm::ortho(0.0f, dims[0], dims[1], 0.0f, 0.0f, 1.0f)};
   const auto view{glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f),
                               glm::vec3(0.0f, 1.0f, 0.0f))};
 
@@ -303,18 +270,18 @@ extern "C" SURGE_MODULE_EXPORT auto on_load(GLFWwindow *window) noexcept -> int 
   // Load game resources
   // All textures
   texture::create_info ci{};
-  ci.filtering = renderer::texture_filtering::nearest;
+  ci.filtering = texture::texture_filtering::nearest;
   globals::tdb.add(ci, "resources/static/base.png", "resources/static/background-day.png",
                    "resources/sheets/bird_red.png");
 
   // First state
-  globals::state_b = fpb::state::prepare;
+  globals::state_b = state::prepare;
   state_transition();
 
   return 0;
 }
 
-extern "C" SURGE_MODULE_EXPORT auto on_unload(GLFWwindow *window) noexcept -> int {
+extern "C" SURGE_MODULE_EXPORT auto on_unload() noexcept -> int {
   using namespace fpb;
 
   globals::pv_ubo.destroy();
@@ -322,16 +289,10 @@ extern "C" SURGE_MODULE_EXPORT auto on_unload(GLFWwindow *window) noexcept -> in
 
   globals::tdb.destroy();
 
-  // Unbind callbacks
-  const auto unbind_callback_stat{unbind_callbacks(window)};
-  if (unbind_callback_stat != 0) {
-    return unbind_callback_stat;
-  }
-
   return 0;
 }
 
-extern "C" SURGE_MODULE_EXPORT auto draw(GLFWwindow *) noexcept -> int {
+extern "C" SURGE_MODULE_EXPORT auto draw() noexcept -> int {
   globals::pv_ubo.bind_to_location(2);
 
   globals::sdb.draw();
@@ -339,20 +300,18 @@ extern "C" SURGE_MODULE_EXPORT auto draw(GLFWwindow *) noexcept -> int {
   return 0;
 }
 
-extern "C" SURGE_MODULE_EXPORT auto update(GLFWwindow *window, double dt) noexcept -> int {
+extern "C" SURGE_MODULE_EXPORT auto update(double dt) noexcept -> int {
   using namespace fpb;
-  using namespace surge;
-  using namespace surge::atom;
 
   // Update states
   state_transition();
-  state_update(window, dt);
+  state_update(dt);
 
   return 0;
 }
 
-extern "C" SURGE_MODULE_EXPORT void keyboard_event(GLFWwindow *, int, int, int, int) noexcept {}
+extern "C" SURGE_MODULE_EXPORT void keyboard_event(int, int, int, int) noexcept {}
 
-extern "C" SURGE_MODULE_EXPORT void mouse_button_event(GLFWwindow *, int, int, int) noexcept {}
+extern "C" SURGE_MODULE_EXPORT void mouse_button_event(int, int, int) noexcept {}
 
-extern "C" SURGE_MODULE_EXPORT void mouse_scroll_event(GLFWwindow *, double, double) noexcept {}
+extern "C" SURGE_MODULE_EXPORT void mouse_scroll_event(double, double) noexcept {}

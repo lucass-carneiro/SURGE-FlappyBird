@@ -9,23 +9,20 @@ static fpb::sdb_t sdb{};      // NOLINT
 static fpb::state_machine::state state_a{}; // NOLINT
 static fpb::state_machine::state state_b{}; // NOLINT
 
-static const glm::vec2 bird_bbox{34.0f, 24.0f};
-static const glm::vec2 base_pos{0.0, 400.0f};
-static const glm::vec2 base_bbox{288.0f, 112.0f};
-
 } // namespace globals
 
-static inline void update_background(const glm::vec2 &dims) {
+static inline void update_background(const glm::vec2 &window_dims) {
   using namespace surge::gl_atom;
 
   static const auto bckg_texture{
       globals::tdb.find("resources/static/background-day.png").value_or(0)};
-  const auto bckg_model{sprite::place(glm::vec2{0.0f}, dims, 0.1f)};
+  const auto bckg_model{sprite::place(glm::vec2{0.0f}, window_dims, 0.1f)};
 
   globals::sdb.add(bckg_texture, bckg_model, 1.0);
 }
 
-static inline void update_rolling_base(float dt, float ww) {
+static inline void update_rolling_base(float dt, const glm::vec2 &window_dims,
+                                       const glm::vec2 &base_pos, const glm::vec2 &base_bbox) {
   using namespace surge::gl_atom;
 
   static const auto base_texture{globals::tdb.find("resources/static/base.png").value_or(0)};
@@ -34,7 +31,7 @@ static inline void update_rolling_base(float dt, float ww) {
   static float base_drift{0.0f};
 
   static auto base_model{
-      sprite::place(globals::base_pos, glm::vec2{ww * 3.0f, globals::base_bbox[1]}, 0.2f)};
+      sprite::place(base_pos, glm::vec2{window_dims[0] * 3.0f, base_bbox[1]}, 0.2f)};
 
   if (base_drift < 0.5f) {
     base_model = glm::translate(base_model, glm::vec3{-base_drift_speed * dt, 0.0f, 0.0f});
@@ -52,13 +49,14 @@ using acceleration_function = float (*)(float y, float y0);
 static inline auto harmonic_oscillator(float y, float y0) -> float { return -50.0f * (y - y0); }
 static inline auto gravity(float, float) -> float { return 1000.0f; }
 
-static inline auto update_bird_physics(const glm::vec2 &dims, float dt, float dt2, bool up_kick,
+static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, float dt2,
+                                       bool up_kick, const glm::vec2 &bird_bbox,
                                        acceleration_function a) {
   using namespace surge::gl_atom;
 
   // Bird position (Velocity Verlet update)
-  const auto x0{dims[0] / 2.0f - globals::bird_bbox[0] / 2.0f - 10.0f};
-  const auto y0{dims[1] / 2.0f - globals::bird_bbox[1] / 2.0f};
+  const auto x0{window_dims[0] / 2.0f - bird_bbox[0] / 2.0f - 10.0f};
+  const auto y0{window_dims[1] / 2.0f - bird_bbox[1] / 2.0f};
 
   static float y_n{y0 - 5.0f};
   static float vy_n{0.0f};
@@ -73,20 +71,22 @@ static inline auto update_bird_physics(const glm::vec2 &dims, float dt, float dt
   const auto a_np1{a(y_n, y0)};
   vy_n = vy_n + 0.5f * (a_n + a_np1) * dt;
 
-  return sprite::place(glm::vec2{x0, y_n}, globals::bird_bbox, 0.3f);
+  return sprite::place(glm::vec2{x0, y_n}, bird_bbox, 0.3f);
 }
 
-static inline auto update_bird_collision(const glm::mat4 &model) noexcept -> bool {
+static inline auto update_bird_collision(const glm::mat4 &model, const glm::vec2 &base_pos,
+                                         const glm::vec2 &base_bbox,
+                                         const glm::vec2 &bird_bbox) noexcept -> bool {
   const auto bird_x{(model)[3][0]};
   const auto bird_y{(model)[3][1]};
-  const auto bird_w{globals::bird_bbox[0]};
-  const auto bird_h{globals::bird_bbox[1]};
+  const auto bird_w{bird_bbox[0]};
+  const auto bird_h{bird_bbox[1]};
 
   // Base colision
-  const auto base_x{globals::base_pos[0]};
-  const auto base_y{globals::base_pos[1]};
-  const auto base_w{globals::base_bbox[0]};
-  const auto base_h{globals::base_bbox[1]};
+  const auto base_x{base_pos[0]};
+  const auto base_y{base_pos[1]};
+  const auto base_w{base_bbox[0]};
+  const auto base_h{base_bbox[1]};
 
   const auto base_collision{bird_x < base_x + base_w && bird_x + bird_w > base_x
                             && bird_y < base_y + base_h && bird_y + bird_h > base_y};
@@ -121,29 +121,27 @@ static inline void update_bird_flap_animation(float dt, const glm::mat4 &bird_mo
   globals::sdb.add_view(bird_sheet, bird_model, bird_frame_view, glm::vec2{141.0f, 26.0f}, 1.0f);
 }
 
-void fpb::update_state_prepare(double dt) noexcept {
+void fpb::update_state_prepare(float dt, float dt2, const glm::vec2 &window_dims,
+                               const glm::vec2 &base_pos, const glm::vec2 &base_bbox,
+                               const glm::vec2 &bird_bbox) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
-
-  // Window dims and ticks
-  const auto dims{window::get_dims()};
-  const auto fdt{static_cast<float>(dt)};
-  const auto fdt2{static_cast<float>(dt * dt)};
 
   // Database reset
   globals::sdb.reset();
 
   // Background
-  update_background(dims);
+  update_background(window_dims);
 
   // Rolling base
-  update_rolling_base(fdt, dims[0]);
+  update_rolling_base(dt, window_dims, base_pos, base_bbox);
 
   // Bird physics
-  const auto bird_model{update_bird_physics(dims, fdt, fdt2, false, harmonic_oscillator)};
+  const auto bird_model{
+      update_bird_physics(window_dims, dt, dt2, false, bird_bbox, harmonic_oscillator)};
 
   // Bird flap animation
-  update_bird_flap_animation(fdt, bird_model);
+  update_bird_flap_animation(dt, bird_model);
 
   // State transition
   if (window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
@@ -151,34 +149,31 @@ void fpb::update_state_prepare(double dt) noexcept {
   }
 }
 
-void fpb::update_state_play(double dt) noexcept {
+void fpb::update_state_play(float dt, float dt2, const glm::vec2 &window_dims,
+                            const glm::vec2 &base_pos, const glm::vec2 &base_bbox,
+                            const glm::vec2 &bird_bbox) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
-
-  // Window dims and ticks
-  const auto dims{window::get_dims()};
-  const auto fdt{static_cast<float>(dt)};
-  const auto fdt2{static_cast<float>(dt * dt)};
 
   // Database reset
   globals::sdb.reset();
 
   // Background
-  update_background(dims);
+  update_background(window_dims);
 
   // Rolling base
-  update_rolling_base(fdt, dims[0]);
+  update_rolling_base(dt, window_dims, base_pos, base_bbox);
 
   // Bird physics
   static auto old_click_state{GLFW_RELEASE}; // We enter this state on a mouse press
   const auto current_click_state{window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT)};
   const auto up_kick{current_click_state == GLFW_PRESS && old_click_state == GLFW_RELEASE};
 
-  const auto bird_model{update_bird_physics(dims, fdt, fdt2, up_kick, gravity)};
-  const auto collision{update_bird_collision(bird_model)};
+  const auto bird_model{update_bird_physics(window_dims, dt, dt2, up_kick, bird_bbox, gravity)};
+  const auto collision{update_bird_collision(bird_model, base_pos, base_bbox, bird_bbox)};
 
   // Bird flap animation
-  update_bird_flap_animation(fdt, bird_model);
+  update_bird_flap_animation(dt, bird_model);
 
   // Refresh click cache
   old_click_state = window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
@@ -205,16 +200,33 @@ void fpb::state_transition() noexcept {
 }
 
 void fpb::state_update(double dt) noexcept {
+  using namespace surge;
   using namespace fpb::state_machine;
+
+  const auto fdt{static_cast<float>(dt)};
+  const auto fdt2{static_cast<float>(dt * dt)};
+
+  const glm::vec2 original_window_size{288.0f, 512.0f};
+  const glm::vec2 original_bird_bbox{34.0f, 24.0f};
+  const glm::vec2 original_base_bbox{288.0f, 112.0f};
+
+  const auto window_dims{window::get_dims()};
+
+  const auto scale_factor{window_dims / original_window_size};
+
+  const auto base_bbox{original_base_bbox * scale_factor};
+  const glm::vec2 base_pos{0.0f, window_dims[1] - base_bbox[1]};
+
+  const glm::vec2 bird_bbox{original_bird_bbox * scale_factor};
 
   switch (globals::state_a) {
 
   case state::prepare:
-    update_state_prepare(dt);
+    update_state_prepare(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox);
     break;
 
   case state::play:
-    update_state_play(dt);
+    update_state_play(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox);
     break;
 
   case state::score:

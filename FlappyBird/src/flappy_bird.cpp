@@ -55,7 +55,7 @@ static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, f
   using namespace surge::gl_atom;
 
   // Bird position (Velocity Verlet update)
-  const auto x0{window_dims[0] / 2.0f - bird_bbox[0] / 2.0f - 10.0f};
+  const auto x0{window_dims[0] / 2.0f - bird_bbox[0] / 2.0f - 50.0f};
   const auto y0{window_dims[1] / 2.0f - bird_bbox[1] / 2.0f};
 
   static float y_n{y0 - 5.0f};

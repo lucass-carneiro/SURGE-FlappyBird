@@ -180,7 +180,7 @@ static inline void update_state_prepare(float dt, float dt2, const glm::vec2 &wi
 static inline void update_state_play(float dt, float dt2, const glm::vec2 &window_dims,
                                      const glm::vec2 &base_pos, const glm::vec2 &base_bbox,
                                      const glm::vec2 &bird_bbox, const glm::vec2 &pipe_bbox,
-                                     const glm::vec3 &pipe_y_pos) noexcept {
+                                     const glm::vec3 &pipe_y_pos, bool &rand_pipe_pos) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
 
@@ -205,7 +205,7 @@ static inline void update_state_play(float dt, float dt2, const glm::vec2 &windo
   update_bird_flap_animation(dt, bird_model);
 
   // Pipes
-  update_pipes(pipe_bbox, pipe_y_pos);
+  update_pipes(pipe_bbox, pipe_y_pos, rand_pipe_pos);
 
   // Refresh click cache
   old_click_state = window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
@@ -259,7 +259,7 @@ void fpb::state_machine::state_update(double dt) noexcept {
   const glm::vec2 pipe_bbox{original_pipe_bbox[0] * scale_factor[0], window_dims[1]};
   static glm::vec3 pipe_y_pos{0.0f};
 
-  // Compute allowed pipe y range
+  // Allowed pipe y range
   const float allowed_pipe_area_fraction{(window_dims[1] - base_bbox[1]) / 4.0f};
   const float allowed_pipe_y_start{allowed_pipe_area_fraction};
   const float allowed_pipe_y_end{window_dims[1] - base_bbox[1] - allowed_pipe_area_fraction};
@@ -284,8 +284,8 @@ void fpb::state_machine::state_update(double dt) noexcept {
     break;
 
   case state::play:
-    update_state_play(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox, pipe_bbox,
-                      pipe_y_pos);
+    update_state_play(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox, pipe_bbox, pipe_y_pos,
+                      rand_pipe_pos);
     break;
 
   case state::score:

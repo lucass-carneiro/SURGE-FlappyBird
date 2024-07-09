@@ -21,22 +21,13 @@ using pvubo_t = surge::gl_atom::pv_ubo::buffer;
 using tdb_t = surge::gl_atom::texture::database;
 using sdb_t = surge::gl_atom::sprite::database;
 
-void state_transition() noexcept;
-void state_update(double dt) noexcept;
-
-void update_state_prepare(float dt, float dt2, const glm::vec2 &window_dims,
-                          const glm::vec2 &base_pos, const glm::vec2 &base_bbox,
-                          const glm::vec2 &bird_bbox) noexcept;
-
-void update_state_play(float dt, float dt2, const glm::vec2 &window_dims, const glm::vec2 &base_pos,
-                       const glm::vec2 &base_bbox, const glm::vec2 &bird_bbox) noexcept;
-
-void update_state_score(double dt) noexcept;
-
 namespace state_machine {
 
 using state_t = surge::u32;
 enum state : surge::u32 { no_state, prepare, play, score, count };
+
+void state_transition() noexcept;
+void state_update(double dt) noexcept;
 
 auto state_to_str(state s) noexcept -> const char *;
 

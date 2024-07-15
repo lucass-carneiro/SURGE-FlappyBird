@@ -13,7 +13,7 @@ static fpb::state_machine::state state_b{}; // NOLINT
 
 } // namespace globals
 
-using pipe_queue_t = surge::static_queue<float, 3>;
+using pipe_queue_t = surge::static_queue<glm::vec2, 3>;
 
 static inline void update_background(const glm::vec2 &window_dims) {
   using namespace surge::gl_atom;
@@ -25,24 +25,22 @@ static inline void update_background(const glm::vec2 &window_dims) {
   globals::sdb.add(bckg_texture, bckg_model, 1.0);
 }
 
-static inline void update_rolling_base(float dt, const glm::vec2 &window_dims,
-                                       const glm::vec2 &base_pos, const glm::vec2 &base_bbox) {
+static inline void update_rolling_base(float ground_drift, const glm::vec2 &window_dims,
+                                       glm::vec2 &base_pos, const glm::vec2 &base_bbox) {
   using namespace surge::gl_atom;
 
   static const auto base_texture{globals::tdb.find("resources/static/base.png").value_or(0)};
+  static auto base_shift{0.0f};
 
-  const float base_drift_speed{0.1f};
-  static float base_drift{0.0f};
-
-  static auto base_model{
+  const auto base_model{
       sprite::place(base_pos, glm::vec2{window_dims[0] * 3.0f, base_bbox[1]}, 0.2f)};
 
-  if (base_drift < 0.5f) {
-    base_model = glm::translate(base_model, glm::vec3{-base_drift_speed * dt, 0.0f, 0.0f});
-    base_drift += base_drift_speed * dt;
+  if (base_shift < base_bbox[0]) {
+    base_pos[0] -= ground_drift;
+    base_shift += ground_drift;
   } else {
-    base_model = glm::translate(base_model, glm::vec3{0.5f, 0.0f, 0.0f});
-    base_drift = 0.0f;
+    base_pos[0] = 0.0f;
+    base_shift = 0.0;
   }
 
   globals::sdb.add(base_texture, base_model, 1.0);
@@ -125,29 +123,38 @@ static inline void update_bird_flap_animation(float dt, const glm::mat4 &bird_mo
   globals::sdb.add_view(bird_sheet, bird_model, bird_frame_view, glm::vec2{141.0f, 26.0f}, 1.0f);
 }
 
-static inline void update_pipes(const glm::vec2 &pipe_bbox,
-                                const pipe_queue_t pipe_queue) noexcept {
+static inline void update_pipes(float ground_drift, const glm::vec2 &pipe_gaps,
+                                const glm::vec2 &pipe_bbox, pipe_queue_t &pipe_queue) noexcept {
   using namespace surge::gl_atom;
 
   static const auto pipe_handle{globals::tdb.find("resources/static/pipe-green.png").value_or(0)};
 
-  const float pipe_gap{150.0f};
-  const glm::vec2 pipe_down_pos{576.0f / 2.0f - pipe_bbox[0] / 2.0f, pipe_queue.front()};
-  const glm::vec2 pipe_up_pos{pipe_down_pos[0], pipe_down_pos[1] - pipe_gap};
+  for (auto &pipe_down_pos : pipe_queue) {
+    const glm::vec2 pipe_up_pos{pipe_down_pos[0], pipe_down_pos[1] - pipe_gaps[1]};
 
-  const auto pipe_down{sprite::place(pipe_down_pos, pipe_bbox, 0.15f)};
-  const auto pipe_up{glm::translate(glm::rotate(sprite::place(pipe_up_pos, pipe_bbox, 0.15f),
-                                                glm::radians(180.0f), glm::vec3{0.0f, 0.0f, 1.0f}),
-                                    glm::vec3{-1.0f, 0.0f, 0.0f})};
+    const auto pipe_down{sprite::place(pipe_down_pos, pipe_bbox, 0.15f)};
+    const auto pipe_up{
+        glm::translate(glm::rotate(sprite::place(pipe_up_pos, pipe_bbox, 0.15f),
+                                   glm::radians(180.0f), glm::vec3{0.0f, 0.0f, 1.0f}),
+                       glm::vec3{-1.0f, 0.0f, 0.0f})};
 
-  globals::sdb.add(pipe_handle, pipe_down, 1.0f);
-  globals::sdb.add(pipe_handle, pipe_up, 1.0f);
+    globals::sdb.add(pipe_handle, pipe_down, 1.0f);
+    globals::sdb.add(pipe_handle, pipe_up, 1.0f);
+
+    pipe_down_pos[0] -= ground_drift;
+  }
+
+  if (pipe_queue.size() < 3) {
+    // TODO: Push random pipe
+    // pipe_queue.push(glm::vec2{window_dims[0] + 50.0f, pipe_y_range(engine)});
+  }
 }
 
-static inline void update_state_prepare(float dt, float dt2, const glm::vec2 &window_dims,
-                                        const glm::vec2 &base_pos, const glm::vec2 &base_bbox,
-                                        const glm::vec2 &bird_bbox, const glm::vec2 &pipe_bbox,
-                                        const pipe_queue_t &pipe_queue) noexcept {
+static inline void update_state_prepare(float dt, float dt2, float ground_drift,
+                                        const glm::vec2 &window_dims, glm::vec2 &base_pos,
+                                        const glm::vec2 &base_bbox, const glm::vec2 &bird_bbox,
+                                        const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
+                                        pipe_queue_t &pipe_queue) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
 
@@ -158,7 +165,7 @@ static inline void update_state_prepare(float dt, float dt2, const glm::vec2 &wi
   update_background(window_dims);
 
   // Rolling base
-  update_rolling_base(dt, window_dims, base_pos, base_bbox);
+  update_rolling_base(ground_drift, window_dims, base_pos, base_bbox);
 
   // Bird physics
   const auto bird_model{
@@ -168,7 +175,7 @@ static inline void update_state_prepare(float dt, float dt2, const glm::vec2 &wi
   update_bird_flap_animation(dt, bird_model);
 
   // TODO: Temporary, pipes
-  update_pipes(pipe_bbox, pipe_queue);
+  update_pipes(ground_drift, pipe_gaps, pipe_bbox, pipe_queue);
 
   // State transition
   if (window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
@@ -176,10 +183,11 @@ static inline void update_state_prepare(float dt, float dt2, const glm::vec2 &wi
   }
 }
 
-static inline void update_state_play(float dt, float dt2, const glm::vec2 &window_dims,
-                                     const glm::vec2 &base_pos, const glm::vec2 &base_bbox,
-                                     const glm::vec2 &bird_bbox, const glm::vec2 &pipe_bbox,
-                                     const pipe_queue_t &pipe_queue) noexcept {
+static inline void update_state_play(float dt, float dt2, float ground_drift,
+                                     const glm::vec2 &window_dims, glm::vec2 &base_pos,
+                                     const glm::vec2 &base_bbox, const glm::vec2 &bird_bbox,
+                                     const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
+                                     pipe_queue_t &pipe_queue) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
 
@@ -190,7 +198,7 @@ static inline void update_state_play(float dt, float dt2, const glm::vec2 &windo
   update_background(window_dims);
 
   // Rolling base
-  update_rolling_base(dt, window_dims, base_pos, base_bbox);
+  update_rolling_base(ground_drift, window_dims, base_pos, base_bbox);
 
   // Bird physics
   static auto old_click_state{GLFW_RELEASE}; // We enter this state on a mouse press
@@ -204,7 +212,7 @@ static inline void update_state_play(float dt, float dt2, const glm::vec2 &windo
   update_bird_flap_animation(dt, bird_model);
 
   // Pipes
-  update_pipes(pipe_bbox, pipe_queue);
+  update_pipes(ground_drift, pipe_gaps, pipe_bbox, pipe_queue);
 
   // Refresh click cache
   old_click_state = window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
@@ -249,12 +257,14 @@ void fpb::state_machine::state_update(double dt) noexcept {
 
   // Base sizes
   const auto base_bbox{original_base_bbox * scale_factor};
-  const glm::vec2 base_pos{0.0f, window_dims[1] - base_bbox[1]};
+  static glm::vec2 base_pos{0.0f, window_dims[1] - base_bbox[1]};
+  const auto ground_drift{100.0f * fdt};
 
   // Bird sizes
   const auto bird_bbox{original_bird_bbox * scale_factor};
 
   // Pipe sizes
+  const glm::vec2 pipe_gaps{150.0f};
   const glm::vec2 pipe_bbox{original_pipe_bbox[0] * scale_factor[0], window_dims[1]};
 
   // Allowed pipe y range
@@ -266,20 +276,19 @@ void fpb::state_machine::state_update(double dt) noexcept {
   static std::minstd_rand engine{std::random_device{}()};
   std::uniform_real_distribution<float> pipe_y_range{allowed_pipe_y_start, allowed_pipe_y_end};
 
-  static pipe_queue_t pipe_y_queue{"pipe_queue", pipe_y_range(engine), pipe_y_range(engine),
-                                   pipe_y_range(engine)};
+  static pipe_queue_t pipe_queue{"pipe_queue", glm::vec2{window_dims[0], pipe_y_range(engine)}};
 
   // State switch
   switch (globals::state_a) {
 
   case state::prepare:
-    update_state_prepare(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox, pipe_bbox,
-                         pipe_y_queue);
+    update_state_prepare(fdt, fdt2, ground_drift, window_dims, base_pos, base_bbox, bird_bbox,
+                         pipe_gaps, pipe_bbox, pipe_queue);
     break;
 
   case state::play:
-    update_state_play(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox, pipe_bbox,
-                      pipe_y_queue);
+    update_state_play(fdt, fdt2, ground_drift, window_dims, base_pos, base_bbox, bird_bbox,
+                      pipe_bbox, pipe_gaps, pipe_queue);
     break;
 
   case state::score:

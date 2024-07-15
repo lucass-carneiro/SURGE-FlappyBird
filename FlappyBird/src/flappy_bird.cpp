@@ -13,6 +13,8 @@ static fpb::state_machine::state state_b{}; // NOLINT
 
 } // namespace globals
 
+using pipe_queue_t = surge::static_queue<float, 3>;
+
 static inline void update_background(const glm::vec2 &window_dims) {
   using namespace surge::gl_atom;
 
@@ -123,14 +125,14 @@ static inline void update_bird_flap_animation(float dt, const glm::mat4 &bird_mo
   globals::sdb.add_view(bird_sheet, bird_model, bird_frame_view, glm::vec2{141.0f, 26.0f}, 1.0f);
 }
 
-static inline void update_pipes(const glm::vec2 &pipe_bbox, const glm::vec3 &pipe_y_pos,
-                                bool &rand_pipe_pos) noexcept {
+static inline void update_pipes(const glm::vec2 &pipe_bbox,
+                                const pipe_queue_t pipe_queue) noexcept {
   using namespace surge::gl_atom;
 
   static const auto pipe_handle{globals::tdb.find("resources/static/pipe-green.png").value_or(0)};
 
   const float pipe_gap{150.0f};
-  const glm::vec2 pipe_down_pos{576.0f / 2.0f - pipe_bbox[0] / 2.0f, pipe_y_pos[0]};
+  const glm::vec2 pipe_down_pos{576.0f / 2.0f - pipe_bbox[0] / 2.0f, pipe_queue.front()};
   const glm::vec2 pipe_up_pos{pipe_down_pos[0], pipe_down_pos[1] - pipe_gap};
 
   const auto pipe_down{sprite::place(pipe_down_pos, pipe_bbox, 0.15f)};
@@ -140,15 +142,12 @@ static inline void update_pipes(const glm::vec2 &pipe_bbox, const glm::vec3 &pip
 
   globals::sdb.add(pipe_handle, pipe_down, 1.0f);
   globals::sdb.add(pipe_handle, pipe_up, 1.0f);
-
-  // TODO: Check if all pipes are out of the screen and rand new pipes
-  rand_pipe_pos = false;
 }
 
 static inline void update_state_prepare(float dt, float dt2, const glm::vec2 &window_dims,
                                         const glm::vec2 &base_pos, const glm::vec2 &base_bbox,
                                         const glm::vec2 &bird_bbox, const glm::vec2 &pipe_bbox,
-                                        const glm::vec3 &pipe_y_pos, bool &rand_pipe_pos) noexcept {
+                                        const pipe_queue_t &pipe_queue) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
 
@@ -169,7 +168,7 @@ static inline void update_state_prepare(float dt, float dt2, const glm::vec2 &wi
   update_bird_flap_animation(dt, bird_model);
 
   // TODO: Temporary, pipes
-  update_pipes(pipe_bbox, pipe_y_pos, rand_pipe_pos);
+  update_pipes(pipe_bbox, pipe_queue);
 
   // State transition
   if (window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
@@ -180,7 +179,7 @@ static inline void update_state_prepare(float dt, float dt2, const glm::vec2 &wi
 static inline void update_state_play(float dt, float dt2, const glm::vec2 &window_dims,
                                      const glm::vec2 &base_pos, const glm::vec2 &base_bbox,
                                      const glm::vec2 &bird_bbox, const glm::vec2 &pipe_bbox,
-                                     const glm::vec3 &pipe_y_pos, bool &rand_pipe_pos) noexcept {
+                                     const pipe_queue_t &pipe_queue) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
 
@@ -205,7 +204,7 @@ static inline void update_state_play(float dt, float dt2, const glm::vec2 &windo
   update_bird_flap_animation(dt, bird_model);
 
   // Pipes
-  update_pipes(pipe_bbox, pipe_y_pos, rand_pipe_pos);
+  update_pipes(pipe_bbox, pipe_queue);
 
   // Refresh click cache
   old_click_state = window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
@@ -257,35 +256,30 @@ void fpb::state_machine::state_update(double dt) noexcept {
 
   // Pipe sizes
   const glm::vec2 pipe_bbox{original_pipe_bbox[0] * scale_factor[0], window_dims[1]};
-  static glm::vec3 pipe_y_pos{0.0f};
 
   // Allowed pipe y range
   const float allowed_pipe_area_fraction{(window_dims[1] - base_bbox[1]) / 4.0f};
   const float allowed_pipe_y_start{allowed_pipe_area_fraction};
   const float allowed_pipe_y_end{window_dims[1] - base_bbox[1] - allowed_pipe_area_fraction};
 
-  // Randomize pipe positions
+  // Initialize pipe position queue
   static std::minstd_rand engine{std::random_device{}()};
-  static bool rand_pipe_pos{true};
+  std::uniform_real_distribution<float> pipe_y_range{allowed_pipe_y_start, allowed_pipe_y_end};
 
-  if (rand_pipe_pos) {
-    std::uniform_real_distribution<float> pipe_y_range{allowed_pipe_y_start, allowed_pipe_y_end};
-    pipe_y_pos[0] = pipe_y_range(engine);
-    pipe_y_pos[1] = pipe_y_range(engine);
-    pipe_y_pos[2] = pipe_y_range(engine);
-  }
+  static pipe_queue_t pipe_y_queue{"pipe_queue", pipe_y_range(engine), pipe_y_range(engine),
+                                   pipe_y_range(engine)};
 
   // State switch
   switch (globals::state_a) {
 
   case state::prepare:
     update_state_prepare(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox, pipe_bbox,
-                         pipe_y_pos, rand_pipe_pos);
+                         pipe_y_queue);
     break;
 
   case state::play:
-    update_state_play(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox, pipe_bbox, pipe_y_pos,
-                      rand_pipe_pos);
+    update_state_play(fdt, fdt2, window_dims, base_pos, base_bbox, bird_bbox, pipe_bbox,
+                      pipe_y_queue);
     break;
 
   case state::score:

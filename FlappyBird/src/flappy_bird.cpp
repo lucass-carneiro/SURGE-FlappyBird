@@ -13,7 +13,9 @@ static fpb::state_machine::state state_b{}; // NOLINT
 
 } // namespace globals
 
-using pipe_queue_t = surge::static_queue<glm::vec2, 3>;
+using pipe_queue_storage_t = foonathan::memory::static_allocator_storage<1024>;
+using pipe_queue_alloc_t = foonathan::memory::static_allocator;
+using pipe_queue_t = foonathan::memory::deque<glm::vec2, pipe_queue_alloc_t>;
 
 static inline void update_background(const glm::vec2 &window_dims) {
   using namespace surge::gl_atom;
@@ -118,7 +120,7 @@ static inline void update_bird_flap_animation(float dt, const glm::mat4 &bird_mo
     elapsed += dt;
   }
 
-  const auto bird_frame_view{frame_views[frame_idx]}; // NOLINT
+  const auto &bird_frame_view{frame_views[frame_idx]}; // NOLINT
 
   globals::sdb.add_view(bird_sheet, bird_model, bird_frame_view, glm::vec2{141.0f, 26.0f}, 1.0f);
 }
@@ -130,6 +132,7 @@ static inline void update_pipes(float ground_drift, const glm::vec2 &pipe_gaps,
   static const auto pipe_handle{globals::tdb.find("resources/static/pipe-green.png").value_or(0)};
 
   for (auto &pipe_down_pos : pipe_queue) {
+    // Place pipe sprites
     const glm::vec2 pipe_up_pos{pipe_down_pos[0], pipe_down_pos[1] - pipe_gaps[1]};
 
     const auto pipe_down{sprite::place(pipe_down_pos, pipe_bbox, 0.15f)};
@@ -141,12 +144,13 @@ static inline void update_pipes(float ground_drift, const glm::vec2 &pipe_gaps,
     globals::sdb.add(pipe_handle, pipe_down, 1.0f);
     globals::sdb.add(pipe_handle, pipe_up, 1.0f);
 
+    // Update pipe position
     pipe_down_pos[0] -= ground_drift;
   }
 
-  if (pipe_queue.size() < 3) {
-    // TODO: Push random pipe
-    // pipe_queue.push(glm::vec2{window_dims[0] + 50.0f, pipe_y_range(engine)});
+  // Check if leftmost pipe left the screen
+  if ((pipe_queue.front()[0] + pipe_bbox[0]) < 0) {
+    pipe_queue.pop_front();
   }
 }
 
@@ -264,19 +268,31 @@ void fpb::state_machine::state_update(double dt) noexcept {
   const auto bird_bbox{original_bird_bbox * scale_factor};
 
   // Pipe sizes
-  const glm::vec2 pipe_gaps{150.0f};
+  const glm::vec2 pipe_gaps{window_dims[0] / 2.0f, 150.0f};
   const glm::vec2 pipe_bbox{original_pipe_bbox[0] * scale_factor[0], window_dims[1]};
 
   // Allowed pipe y range
   const float allowed_pipe_area_fraction{(window_dims[1] - base_bbox[1]) / 4.0f};
-  const float allowed_pipe_y_start{allowed_pipe_area_fraction};
-  const float allowed_pipe_y_end{window_dims[1] - base_bbox[1] - allowed_pipe_area_fraction};
+  std::uniform_real_distribution<float> pipe_y_range{
+      allowed_pipe_area_fraction, window_dims[1] - base_bbox[1] - allowed_pipe_area_fraction};
 
   // Initialize pipe position queue
   static std::minstd_rand engine{std::random_device{}()};
-  std::uniform_real_distribution<float> pipe_y_range{allowed_pipe_y_start, allowed_pipe_y_end};
 
-  static pipe_queue_t pipe_queue{"pipe_queue", glm::vec2{window_dims[0], pipe_y_range(engine)}};
+  static pipe_queue_storage_t storage{};
+  static pipe_queue_alloc_t sa{storage};
+  static pipe_queue_t pipe_queue{
+      {glm::vec2{window_dims[0], pipe_y_range(engine)},
+       glm::vec2{window_dims[0] + window_dims[0] / 2.0f, pipe_y_range(engine)},
+       glm::vec2{window_dims[0] + 2.0f * window_dims[0] / 2.0f, pipe_y_range(engine)},
+       glm::vec2{window_dims[0] + 3.0f * window_dims[0] / 2.0f, pipe_y_range(engine)}},
+      sa};
+
+  // Keep pipe number constant
+  if (pipe_queue.size() != 4) {
+    const auto &last_pipe{pipe_queue.back()};
+    pipe_queue.push_back(glm::vec2{last_pipe[0] + window_dims[0] / 2.0f, pipe_y_range(engine)});
+  }
 
   // State switch
   switch (globals::state_a) {

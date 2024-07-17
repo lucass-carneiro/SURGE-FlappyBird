@@ -5,8 +5,8 @@ window:
   cursor: 1
 
 resolution:
-  width: 288
-  height: 512
+  width: 576
+  height: 1024
 
 renderer:
   backend: 0 # 0 to OpenGL, 1 to Vulkan

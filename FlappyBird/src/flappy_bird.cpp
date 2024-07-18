@@ -11,6 +11,8 @@ static fpb::sdb_t sdb{};      // NOLINT
 static fpb::state_machine::state state_a{}; // NOLINT
 static fpb::state_machine::state state_b{}; // NOLINT
 
+static bool bird_collision{false}; // NOLINT
+
 } // namespace globals
 
 using pipe_queue_storage_t = foonathan::memory::static_allocator_storage<1024>;
@@ -55,11 +57,11 @@ static inline auto gravity(float, float) -> float { return 1000.0f; }
 
 static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, float dt2,
                                        bool up_kick, const glm::vec2 &bird_bbox,
-                                       acceleration_function a) {
+                                       const glm::vec2 &base_pos, acceleration_function a) {
   using namespace surge::gl_atom;
 
   // Bird position (Velocity Verlet update)
-  const auto x0{window_dims[0] / 2.0f - bird_bbox[0] / 2.0f - 50.0f};
+  const auto x0{window_dims[0] / 3.0f - bird_bbox[0] / 2.0f};
   const auto y0{window_dims[1] / 2.0f - bird_bbox[1] / 2.0f};
 
   static float y_n{y0 - 5.0f};
@@ -75,27 +77,14 @@ static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, f
   const auto a_np1{a(y_n, y0)};
   vy_n = vy_n + 0.5f * (a_n + a_np1) * dt;
 
+  // Ground collision
+  if ((base_pos[1] - (y_n + bird_bbox[1])) < 0.0f) {
+    y_n = base_pos[1] - bird_bbox[1];
+    vy_n = 0.0f;
+    globals::bird_collision = true;
+  }
+
   return sprite::place(glm::vec2{x0, y_n}, bird_bbox, 0.3f);
-}
-
-static inline auto update_bird_collision(const glm::mat4 &model, const glm::vec2 &base_pos,
-                                         const glm::vec2 &base_bbox,
-                                         const glm::vec2 &bird_bbox) noexcept -> bool {
-  const auto bird_x{(model)[3][0]};
-  const auto bird_y{(model)[3][1]};
-  const auto bird_w{bird_bbox[0]};
-  const auto bird_h{bird_bbox[1]};
-
-  // Base colision
-  const auto base_x{base_pos[0]};
-  const auto base_y{base_pos[1]};
-  const auto base_w{base_bbox[0]};
-  const auto base_h{base_bbox[1]};
-
-  const auto base_collision{bird_x < base_x + base_w && bird_x + bird_w > base_x
-                            && bird_y < base_y + base_h && bird_y + bird_h > base_y};
-
-  return base_collision;
 }
 
 static inline void update_bird_flap_animation(float dt, const glm::mat4 &bird_model) {
@@ -156,9 +145,8 @@ static inline void update_pipes(float ground_drift, const glm::vec2 &pipe_gaps,
 
 static inline void update_state_prepare(float dt, float dt2, float ground_drift,
                                         const glm::vec2 &window_dims, glm::vec2 &base_pos,
-                                        const glm::vec2 &base_bbox, const glm::vec2 &bird_bbox,
-                                        const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
-                                        pipe_queue_t &pipe_queue) noexcept {
+                                        const glm::vec2 &base_bbox,
+                                        const glm::vec2 &bird_bbox) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
 
@@ -173,13 +161,10 @@ static inline void update_state_prepare(float dt, float dt2, float ground_drift,
 
   // Bird physics
   const auto bird_model{
-      update_bird_physics(window_dims, dt, dt2, false, bird_bbox, harmonic_oscillator)};
+      update_bird_physics(window_dims, dt, dt2, false, bird_bbox, base_pos, harmonic_oscillator)};
 
   // Bird flap animation
   update_bird_flap_animation(dt, bird_model);
-
-  // TODO: Temporary, pipes
-  update_pipes(ground_drift, pipe_gaps, pipe_bbox, pipe_queue);
 
   // State transition
   if (window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
@@ -204,25 +189,30 @@ static inline void update_state_play(float dt, float dt2, float ground_drift,
   // Rolling base
   update_rolling_base(ground_drift, window_dims, base_pos, base_bbox);
 
-  // Bird physics
+  // Pipes
+  update_pipes(ground_drift, pipe_gaps, pipe_bbox, pipe_queue);
+
+  // Bird physics (bird position)
   static auto old_click_state{GLFW_RELEASE}; // We enter this state on a mouse press
   const auto current_click_state{window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT)};
   const auto up_kick{current_click_state == GLFW_PRESS && old_click_state == GLFW_RELEASE};
 
-  const auto bird_model{update_bird_physics(window_dims, dt, dt2, up_kick, bird_bbox, gravity)};
-  const auto collision{update_bird_collision(bird_model, base_pos, base_bbox, bird_bbox)};
+  auto bird_model{update_bird_physics(window_dims, dt, dt2, up_kick, bird_bbox, base_pos, gravity)};
 
   // Bird flap animation
   update_bird_flap_animation(dt, bird_model);
 
-  // Pipes
-  update_pipes(ground_drift, pipe_gaps, pipe_bbox, pipe_queue);
-
   // Refresh click cache
   old_click_state = window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
 
-  // State transition
-  if (collision) {
+  // If a collision happened, update for extra frames then transition. These extra updates are
+  // required becase if we were to transition as soon as the collision happens, because of the GBA
+  // redundancy we would revert back to the sprite states in the frame prior to the collision.
+  const int extra_frame_count{2};
+  static int extra_frames{0};
+  if (globals::bird_collision && extra_frames < extra_frame_count) {
+    extra_frames++;
+  } else if (globals::bird_collision && extra_frames == extra_frame_count) {
     globals::state_b = state::score;
   }
 }
@@ -298,13 +288,12 @@ void fpb::state_machine::state_update(double dt) noexcept {
   switch (globals::state_a) {
 
   case state::prepare:
-    update_state_prepare(fdt, fdt2, ground_drift, window_dims, base_pos, base_bbox, bird_bbox,
-                         pipe_gaps, pipe_bbox, pipe_queue);
+    update_state_prepare(fdt, fdt2, ground_drift, window_dims, base_pos, base_bbox, bird_bbox);
     break;
 
   case state::play:
     update_state_play(fdt, fdt2, ground_drift, window_dims, base_pos, base_bbox, bird_bbox,
-                      pipe_bbox, pipe_gaps, pipe_queue);
+                      pipe_gaps, pipe_bbox, pipe_queue);
     break;
 
   case state::score:

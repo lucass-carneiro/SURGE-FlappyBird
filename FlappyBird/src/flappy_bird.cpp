@@ -11,8 +11,6 @@ static fpb::sdb_t sdb{};      // NOLINT
 static fpb::state_machine::state state_a{}; // NOLINT
 static fpb::state_machine::state state_b{}; // NOLINT
 
-static bool bird_collision{false}; // NOLINT
-
 } // namespace globals
 
 using pipe_queue_storage_t = foonathan::memory::static_allocator_storage<1024>;
@@ -57,7 +55,8 @@ static inline auto gravity(float, float) -> float { return 1000.0f; }
 
 static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, float dt2,
                                        bool up_kick, const glm::vec2 &bird_bbox,
-                                       const glm::vec2 &base_pos, acceleration_function a) {
+                                       const glm::vec2 &base_pos, acceleration_function a,
+                                       bool *collided) {
   using namespace surge::gl_atom;
 
   // Bird position (Velocity Verlet update)
@@ -81,7 +80,10 @@ static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, f
   if ((base_pos[1] - (y_n + bird_bbox[1])) < 0.0f) {
     y_n = base_pos[1] - bird_bbox[1];
     vy_n = 0.0f;
-    globals::bird_collision = true;
+
+    if (collided != nullptr) {
+      *collided = true;
+    }
   }
 
   return sprite::place(glm::vec2{x0, y_n}, bird_bbox, 0.3f);
@@ -160,8 +162,8 @@ static inline void update_state_prepare(float dt, float dt2, float ground_drift,
   update_rolling_base(ground_drift, window_dims, base_pos, base_bbox);
 
   // Bird physics
-  const auto bird_model{
-      update_bird_physics(window_dims, dt, dt2, false, bird_bbox, base_pos, harmonic_oscillator)};
+  const auto bird_model{update_bird_physics(window_dims, dt, dt2, false, bird_bbox, base_pos,
+                                            harmonic_oscillator, nullptr)};
 
   // Bird flap animation
   update_bird_flap_animation(dt, bird_model);
@@ -197,7 +199,9 @@ static inline void update_state_play(float dt, float dt2, float ground_drift,
   const auto current_click_state{window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT)};
   const auto up_kick{current_click_state == GLFW_PRESS && old_click_state == GLFW_RELEASE};
 
-  auto bird_model{update_bird_physics(window_dims, dt, dt2, up_kick, bird_bbox, base_pos, gravity)};
+  static bool collided{false};
+  auto bird_model{
+      update_bird_physics(window_dims, dt, dt2, up_kick, bird_bbox, base_pos, gravity, &collided)};
 
   // Bird flap animation
   update_bird_flap_animation(dt, bird_model);
@@ -210,9 +214,9 @@ static inline void update_state_play(float dt, float dt2, float ground_drift,
   // redundancy we would revert back to the sprite states in the frame prior to the collision.
   const int extra_frame_count{2};
   static int extra_frames{0};
-  if (globals::bird_collision && extra_frames < extra_frame_count) {
+  if (collided && extra_frames < extra_frame_count) {
     extra_frames++;
-  } else if (globals::bird_collision && extra_frames == extra_frame_count) {
+  } else if (collided && extra_frames == extra_frame_count) {
     globals::state_b = state::score;
   }
 }

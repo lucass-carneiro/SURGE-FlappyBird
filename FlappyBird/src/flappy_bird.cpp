@@ -54,9 +54,8 @@ static inline auto harmonic_oscillator(float y, float y0) -> float { return -50.
 static inline auto gravity(float, float) -> float { return 1000.0f; }
 
 static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, float dt2,
-                                       bool up_kick, const glm::vec2 &bird_bbox,
-                                       const glm::vec2 &base_pos, acceleration_function a,
-                                       bool *collided) {
+                                       bool up_kick, bool collided, const glm::vec2 &bird_bbox,
+                                       acceleration_function a) {
   using namespace surge::gl_atom;
 
   // Bird position (Velocity Verlet update)
@@ -70,23 +69,28 @@ static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, f
     vy_n = -300.0f;
   }
 
-  const auto a_n{a(y_n, y0)};
-
-  y_n = y_n + vy_n * dt + 0.5f * a_n * dt2;
-  const auto a_np1{a(y_n, y0)};
-  vy_n = vy_n + 0.5f * (a_n + a_np1) * dt;
-
-  // Ground collision
-  if ((base_pos[1] - (y_n + bird_bbox[1])) < 0.0f) {
-    y_n = base_pos[1] - bird_bbox[1];
+  if (collided) {
     vy_n = 0.0f;
-
-    if (collided != nullptr) {
-      *collided = true;
-    }
   }
 
+  const auto a_n{collided ? 0.0f : a(y_n, y0)};
+  y_n = y_n + vy_n * dt + 0.5f * a_n * dt2;
+  const auto a_np1{collided ? 0.0f : a(y_n, y0)};
+  vy_n = vy_n + 0.5f * (a_n + a_np1) * dt;
+
   return sprite::place(glm::vec2{x0, y_n}, bird_bbox, 0.3f);
+}
+
+static inline auto update_collision(const glm::mat4 &bird_model, const glm::vec2 &bird_bbox,
+                                    const ::glm::vec2 &base_pos) noexcept -> bool {
+  // Ground collision: True if bird bottom equals base to
+  const auto bird_bottom{bird_model[3][1] + bird_bbox[1]};
+  const auto base_top{base_pos[1]};
+  if ((bird_bottom - base_top) > 0) {
+    return true;
+  }
+
+  return false;
 }
 
 static inline void update_bird_flap_animation(float dt, const glm::mat4 &bird_model) {
@@ -162,8 +166,8 @@ static inline void update_state_prepare(float dt, float dt2, float ground_drift,
   update_rolling_base(ground_drift, window_dims, base_pos, base_bbox);
 
   // Bird physics
-  const auto bird_model{update_bird_physics(window_dims, dt, dt2, false, bird_bbox, base_pos,
-                                            harmonic_oscillator, nullptr)};
+  const auto bird_model{
+      update_bird_physics(window_dims, dt, dt2, false, false, bird_bbox, harmonic_oscillator)};
 
   // Bird flap animation
   update_bird_flap_animation(dt, bird_model);
@@ -199,9 +203,9 @@ static inline void update_state_play(float dt, float dt2, float ground_drift,
   const auto current_click_state{window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT)};
   const auto up_kick{current_click_state == GLFW_PRESS && old_click_state == GLFW_RELEASE};
 
-  static bool collided{false};
-  auto bird_model{
-      update_bird_physics(window_dims, dt, dt2, up_kick, bird_bbox, base_pos, gravity, &collided)};
+  const auto bird_model{
+      update_bird_physics(window_dims, dt, dt2, up_kick, false, bird_bbox, gravity)};
+  const bool collided{update_collision(bird_model, bird_bbox, base_pos)};
 
   // Bird flap animation
   update_bird_flap_animation(dt, bird_model);

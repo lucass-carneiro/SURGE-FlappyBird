@@ -81,16 +81,47 @@ static inline auto update_bird_physics(const glm::vec2 &window_dims, float dt, f
   return sprite::place(glm::vec2{x0, y_n}, bird_bbox, 0.3f);
 }
 
+static inline auto rect_collision(const glm::vec2 &rect1_start, const glm::vec2 &rect1_dims,
+                                  const glm::vec2 &rect2_start,
+                                  const glm::vec2 &rect2_dims) noexcept -> bool {
+  const auto r1x{rect1_start[0]};
+  const auto r1y{rect1_start[1]};
+  const auto r1w{rect1_dims[0]};
+  const auto r1h{rect1_dims[1]};
+
+  const auto r2x{rect2_start[0]};
+  const auto r2y{rect2_start[1]};
+  const auto r2w{rect2_dims[0]};
+  const auto r2h{rect2_dims[1]};
+
+  return r1x < r2x + r2w && r1x + r1w > r2x && r1y < r2y + r2h && r1y + r1h > r2y;
+}
+
 static inline auto update_collision(const glm::mat4 &bird_model, const glm::vec2 &bird_bbox,
-                                    const ::glm::vec2 &base_pos) noexcept -> bool {
-  // Ground collision: True if bird bottom equals base to
-  const auto bird_bottom{bird_model[3][1] + bird_bbox[1]};
+                                    const ::glm::vec2 &base_pos, const ::glm::vec2 &pipe_gaps,
+                                    const ::glm::vec2 &pipe_bbox,
+                                    const pipe_queue_t &pipe_queue) noexcept -> bool {
+  bool collision{false};
+
+  const glm::vec2 bird_pos{bird_model[3][0], bird_model[3][1]};
+
+  // Ground collision: True if bird bottom equals base top
+  const auto bird_bottom{bird_pos[1] + bird_bbox[1]};
   const auto base_top{base_pos[1]};
   if ((bird_bottom - base_top) > 0) {
-    return true;
+    collision |= true;
   }
 
-  return false;
+  // Pipe collision: Construct the pipe rects and check bird-pipe for each pipe
+  for (const auto &pipe_down_pos : pipe_queue) {
+    const glm::vec2 pipe_up_pos{pipe_down_pos[0], 0.0f};
+    const glm::vec2 pip_up_bbox{pipe_bbox[0], pipe_down_pos[1] - pipe_gaps[1]};
+
+    collision |= rect_collision(bird_pos, bird_bbox, pipe_down_pos, pipe_bbox);
+    collision |= rect_collision(bird_pos, bird_bbox, pipe_up_pos, pip_up_bbox);
+  }
+
+  return collision;
 }
 
 static inline void update_bird_flap_animation(float dt, const glm::mat4 &bird_model) {
@@ -205,7 +236,8 @@ static inline void update_state_play(float dt, float dt2, float ground_drift,
 
   const auto bird_model{
       update_bird_physics(window_dims, dt, dt2, up_kick, false, bird_bbox, gravity)};
-  const bool collided{update_collision(bird_model, bird_bbox, base_pos)};
+  const bool collided{
+      update_collision(bird_model, bird_bbox, base_pos, pipe_gaps, pipe_bbox, pipe_queue)};
 
   // Bird flap animation
   update_bird_flap_animation(dt, bird_model);
@@ -216,7 +248,7 @@ static inline void update_state_play(float dt, float dt2, float ground_drift,
   // If a collision happened, update for extra frames then transition. These extra updates are
   // required becase if we were to transition as soon as the collision happens, because of the GBA
   // redundancy we would revert back to the sprite states in the frame prior to the collision.
-  const int extra_frame_count{2};
+  const int extra_frame_count{3};
   static int extra_frames{0};
   if (collided && extra_frames < extra_frame_count) {
     extra_frames++;

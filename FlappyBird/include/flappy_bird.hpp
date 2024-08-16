@@ -26,10 +26,11 @@ namespace state_machine {
 using state_t = surge::u32;
 enum state : surge::u32 { no_state, prepare, play, score, count };
 
-void state_transition() noexcept;
-void state_update(double dt) noexcept;
+void state_transition(state &state_a, state &state_b) noexcept;
+void state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a, state &state_b,
+                  double dt) noexcept;
 
-auto state_to_str(state s) noexcept -> const char *;
+auto state_to_str(const state &s) noexcept -> const char *;
 
 } // namespace state_machine
 } // namespace fpb

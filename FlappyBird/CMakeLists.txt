@@ -24,6 +24,8 @@ set(
 set(
   SURGE_MODULE_FLAPPY_BIRD_SOURCE_LIST
   "${PROJECT_SOURCE_DIR}/src/flappy_bird.cpp"
+  "${PROJECT_SOURCE_DIR}/src/state_machine.cpp"
+  "${PROJECT_SOURCE_DIR}/src/state_update.cpp"
 )
 
 # -----------------------------------------
@@ -150,7 +152,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
       -Wloop-analysis
       -Wno-switch-enum
     )
-    target_link_options(SurgeFlappyBird PUBLIC -Og -g3 -ggdb3)
+      target_link_options(SurgeFlappyBird PUBLIC -Og -g3 -ggdb3)
   else()
     target_compile_options(SurgeFlappyBird PUBLIC /Wall /MP /MDd)
     target_link_options(SurgeFlappyBird PUBLIC /DEBUG:FULL)

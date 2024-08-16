@@ -1,8 +1,6 @@
 #include "flappy_bird.hpp"
 
-using pipe_queue_storage_t = foonathan::memory::static_allocator_storage<1024>;
-using pipe_queue_alloc_t = foonathan::memory::static_allocator;
-using pipe_queue_t = foonathan::memory::deque<glm::vec2, pipe_queue_alloc_t>;
+using pipe_queue_t = surge::deque<glm::vec2>;
 
 using acceleration_function = float (*)(float y, float y0);
 
@@ -89,10 +87,10 @@ static inline void update_bird_physics(float y0, float &y_n, float &vy_n, float 
   vy_n = vy_n + 0.5f * (a_n + a_np1) * dt;
 }
 
-static inline void update_bird(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const glm::vec2 &bird_origin,
+static inline auto update_bird(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const glm::vec2 &bird_origin,
                                const glm::vec2 &bird_bbox,
                                const glm::vec2 &original_bird_sheet_size, float dt, float dt2,
-                               bool up_kick, acceleration_function a) noexcept {
+                               bool up_kick, acceleration_function a) noexcept -> glm::mat4 {
 
   static const auto bird_sheet{tdb.find("resources/sheets/bird_red.png").value_or(0)};
 
@@ -106,6 +104,43 @@ static inline void update_bird(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const glm
   const auto bird_model{surge::gl_atom::sprite::place(bird_pos, bird_bbox, 0.3f)};
 
   sdb.add_view(bird_sheet, bird_model, flap_frame_view, original_bird_sheet_size, 1.0f);
+
+  return bird_model;
+}
+
+/*static inline auto rect_collision(const glm::vec2 &rect1_start, const glm::vec2 &rect1_dims,
+                                  const glm::vec2 &rect2_start,
+                                  const glm::vec2 &rect2_dims) noexcept -> bool {
+  const auto r1x{rect1_start[0]};
+  const auto r1y{rect1_start[1]};
+  const auto r1w{rect1_dims[0]};
+  const auto r1h{rect1_dims[1]};
+
+  const auto r2x{rect2_start[0]};
+  const auto r2y{rect2_start[1]};
+  const auto r2w{rect2_dims[0]};
+  const auto r2h{rect2_dims[1]};
+
+  return r1x < r2x + r2w && r1x + r1w > r2x && r1y < r2y + r2h && r1y + r1h > r2y;
+}*/
+
+static inline auto update_collision(const glm::mat4 &bird_model, const glm::vec2 &bird_bbox,
+                                    const glm::vec2 &base_pos) noexcept -> bool {
+  bool collision{false};
+
+  const glm::vec2 bird_pos{bird_model[3][0], bird_model[3][1]};
+
+  // Ground collision: True if bird bottom equals base top
+  const auto bird_bottom{bird_pos[1] + bird_bbox[1]};
+  const auto base_top{base_pos[1]};
+
+  const auto ground_collision{
+      (base_top - bird_bottom) < 0
+      || ((base_top - bird_bottom) > 0 && ((base_top - bird_bottom) < 1.0e-6))};
+
+  collision |= ground_collision;
+
+  return collision;
 }
 
 static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
@@ -127,11 +162,11 @@ static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
               harmonic_oscillator);
 }
 
-static inline void update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
+static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                      const glm::vec2 &window_dims, const glm::vec2 &base_bbox,
                                      const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
                                      const glm::vec2 &original_bird_sheet_size, float drift_speed,
-                                     float dt, float dt2) noexcept {
+                                     float dt, float dt2) noexcept -> bool {
   // Database reset
   sdb.reset();
 
@@ -139,6 +174,7 @@ static inline void update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   update_background(tdb, sdb, window_dims);
 
   // Rolling base
+  const glm::vec2 &base_pos{0.0, window_dims[1] - base_bbox[1]};
   update_rolling_base(tdb, sdb, window_dims, base_bbox, drift_speed);
 
   // Bird
@@ -146,12 +182,16 @@ static inline void update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   const auto current_click_state{surge::window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT)};
   const auto up_kick{current_click_state == GLFW_PRESS && old_click_state == GLFW_RELEASE};
 
-  update_bird(tdb, sdb, bird_origin, bird_bbox, original_bird_sheet_size, dt, dt2, up_kick,
-              gravity);
+  const auto bird_model{update_bird(tdb, sdb, bird_origin, bird_bbox, original_bird_sheet_size, dt,
+                                    dt2, up_kick, gravity)};
 
   // Refresh click cache
   old_click_state = surge::window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
+
+  return update_collision(bird_model, bird_bbox, base_pos);
 }
+
+static inline void update_score() { log_info("Collided!"); }
 
 void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a,
                                       state &state_b, double dt) noexcept {
@@ -194,19 +234,17 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
   // Initialize pipe position queue
   static std::minstd_rand engine{std::random_device{}()};
 
-  static pipe_queue_storage_t storage{};
-  static pipe_queue_alloc_t sa{storage};
   static pipe_queue_t pipe_queue{
       {glm::vec2{window_dims[0], pipe_y_range(engine)},
        glm::vec2{window_dims[0] + window_dims[0] / 2.0f, pipe_y_range(engine)},
        glm::vec2{window_dims[0] + 2.0f * window_dims[0] / 2.0f, pipe_y_range(engine)},
-       glm::vec2{window_dims[0] + 3.0f * window_dims[0] / 2.0f, pipe_y_range(engine)}},
-      sa};
+       glm::vec2{window_dims[0] + 3.0f * window_dims[0] / 2.0f, pipe_y_range(engine)}}};
 
   // Keep pipe number constant
   if (pipe_queue.size() != 4) {
     const auto &last_pipe{pipe_queue.back()};
-    pipe_queue.push_back(glm::vec2{last_pipe[0] + window_dims[0] / 2.0f, pipe_y_range(engine)});
+    const glm::vec2 new_pipe{last_pipe[0] + window_dims[0] / 2.0f, pipe_y_range(engine)};
+    pipe_queue.emplace_back(new_pipe);
   }
 
   // State switch
@@ -222,12 +260,14 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
     break;
 
   case state::play:
-    update_state_play(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
-                      original_bird_sheet_size, drift_speed, fdt, fdt2);
+    if (update_state_play(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
+                          original_bird_sheet_size, drift_speed, fdt, fdt2)) {
+      state_b = state::score;
+    }
     break;
 
   case state::score:
-    // TODo
+    update_score();
     break;
 
   default:

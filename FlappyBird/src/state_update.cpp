@@ -108,7 +108,37 @@ static inline auto update_bird(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const glm
   return bird_model;
 }
 
-/*static inline auto rect_collision(const glm::vec2 &rect1_start, const glm::vec2 &rect1_dims,
+static inline void update_pipes(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, float drift_speed,
+                                const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
+                                pipe_queue_t &pipe_queue) noexcept {
+  using namespace surge::gl_atom;
+
+  static const auto pipe_handle{tdb.find("resources/static/pipe-green.png").value_or(0)};
+
+  for (auto &pipe_down_pos : pipe_queue) {
+    // Place pipe sprites
+    const glm::vec2 pipe_up_pos{pipe_down_pos[0], pipe_down_pos[1] - pipe_gaps[1]};
+
+    const auto pipe_down{sprite::place(pipe_down_pos, pipe_bbox, 0.15f)};
+    const auto pipe_up{
+        glm::translate(glm::rotate(sprite::place(pipe_up_pos, pipe_bbox, 0.15f),
+                                   glm::radians(180.0f), glm::vec3{0.0f, 0.0f, 1.0f}),
+                       glm::vec3{-1.0f, 0.0f, 0.0f})};
+
+    sdb.add(pipe_handle, pipe_down, 1.0f);
+    sdb.add(pipe_handle, pipe_up, 1.0f);
+
+    // Update pipe position
+    pipe_down_pos[0] -= drift_speed;
+  }
+
+  // Check if leftmost pipe left the screen
+  if ((pipe_queue.front()[0] + pipe_bbox[0]) < 0) {
+    pipe_queue.pop_front();
+  }
+}
+
+static inline auto rect_collision(const glm::vec2 &rect1_start, const glm::vec2 &rect1_dims,
                                   const glm::vec2 &rect2_start,
                                   const glm::vec2 &rect2_dims) noexcept -> bool {
   const auto r1x{rect1_start[0]};
@@ -122,23 +152,33 @@ static inline auto update_bird(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const glm
   const auto r2h{rect2_dims[1]};
 
   return r1x < r2x + r2w && r1x + r1w > r2x && r1y < r2y + r2h && r1y + r1h > r2y;
-}*/
+}
 
 static inline auto update_collision(const glm::mat4 &bird_model, const glm::vec2 &bird_bbox,
-                                    const glm::vec2 &base_pos) noexcept -> bool {
+                                    const glm::vec2 &base_pos, const ::glm::vec2 &pipe_gaps,
+                                    const ::glm::vec2 &pipe_bbox,
+                                    const pipe_queue_t &pipe_queue) noexcept -> bool {
   bool collision{false};
 
   const glm::vec2 bird_pos{bird_model[3][0], bird_model[3][1]};
 
   // Ground collision: True if bird bottom equals base top
+  // To make sure that the very bottom of the bird touches the ground, we need to introduce a 1px
+  // offset. This is probably due to the fact that the sprites have a 1 pixel buffer around then.
+  // This should not be necessary, but nevertheless, it is happening.
+  // TODO: Fix this
   const auto bird_bottom{bird_pos[1] + bird_bbox[1]};
   const auto base_top{base_pos[1]};
+  collision |= ((base_top - bird_bottom + 2.0f) < 1.0e-6f);
 
-  const auto ground_collision{
-      (base_top - bird_bottom) < 0
-      || ((base_top - bird_bottom) > 0 && ((base_top - bird_bottom) < 1.0e-6))};
+  // Pipe collision: Construct the pipe rects and check bird-pipe for each pipe
+  for (const auto &pipe_down_pos : pipe_queue) {
+    const glm::vec2 pipe_up_pos{pipe_down_pos[0], 0.0f};
+    const glm::vec2 pip_up_bbox{pipe_bbox[0], pipe_down_pos[1] - pipe_gaps[1]};
 
-  collision |= ground_collision;
+    collision |= rect_collision(bird_pos, bird_bbox, pipe_down_pos, pipe_bbox);
+    collision |= rect_collision(bird_pos, bird_bbox, pipe_up_pos, pip_up_bbox);
+  }
 
   return collision;
 }
@@ -165,8 +205,10 @@ static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
 static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                      const glm::vec2 &window_dims, const glm::vec2 &base_bbox,
                                      const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
-                                     const glm::vec2 &original_bird_sheet_size, float drift_speed,
-                                     float dt, float dt2) noexcept -> bool {
+                                     const glm::vec2 &original_bird_sheet_size,
+                                     const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
+                                     pipe_queue_t &pipe_queue, float drift_speed, float dt,
+                                     float dt2) noexcept -> bool {
   // Database reset
   sdb.reset();
 
@@ -176,6 +218,9 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   // Rolling base
   const glm::vec2 &base_pos{0.0, window_dims[1] - base_bbox[1]};
   update_rolling_base(tdb, sdb, window_dims, base_bbox, drift_speed);
+
+  // Pipes
+  update_pipes(tdb, sdb, drift_speed, pipe_gaps, pipe_bbox, pipe_queue);
 
   // Bird
   static auto old_click_state{GLFW_RELEASE}; // We enter this state on a mouse press
@@ -188,10 +233,10 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   // Refresh click cache
   old_click_state = surge::window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
 
-  return update_collision(bird_model, bird_bbox, base_pos);
+  return update_collision(bird_model, bird_bbox, base_pos, pipe_gaps, pipe_bbox, pipe_queue);
 }
 
-static inline void update_score() { log_info("Collided!"); }
+static inline void update_score() {}
 
 void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a,
                                       state &state_b, double dt) noexcept {
@@ -261,7 +306,8 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
 
   case state::play:
     if (update_state_play(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
-                          original_bird_sheet_size, drift_speed, fdt, fdt2)) {
+                          original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue, drift_speed,
+                          fdt, fdt2)) {
       state_b = state::score;
     }
     break;

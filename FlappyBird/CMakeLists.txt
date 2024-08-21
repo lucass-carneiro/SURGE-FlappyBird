@@ -166,21 +166,24 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   if(SURGE_COMPILER_FLAG_STYLE MATCHES "msvc")
-  target_compile_options(Surge2048 PUBLIC /MP /MD)  
+  target_compile_options(SurgeFlappyBird PUBLIC /MP /MD)
   endif()
 endif()
 
-if(CMAKE_BUILD_TYPE STREQUAL "Profile")
+if(CMAKE_BUILD_TYPE STREQUAL "Profile" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+  target_link_libraries(SurgeFlappyBird PRIVATE Tracy::TracyClient)
+  
   if(SURGE_COMPILER_FLAG_STYLE MATCHES "gcc")
     target_compile_options(SurgeFlappyBird PUBLIC -g3 -ggdb3 -fno-omit-frame-pointer)
     target_link_options(SurgeFlappyBird PUBLIC -g3 -ggdb3 -fno-omit-frame-pointer -rdynamic)
   else()
-    target_compile_options(SurgeFlappyBird PUBLIC /MP /MDd)
+    target_compile_options(SurgeFlappyBird PUBLIC /MP /MD)
     target_link_options(SurgeFlappyBird PUBLIC /DEBUG:FULL)
   endif()
 
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(SurgeFlappyBird PUBLIC debuginfod)
+    target_link_libraries(SurgeFlappyBird PUBLIC unwind)
   endif()
 endif()
 

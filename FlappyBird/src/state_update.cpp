@@ -83,7 +83,6 @@ static inline auto update_bird_flap_animation_frame(float delta_t) noexcept -> g
 static inline void update_bird_physics(float y0, float &y_n, float &vy_n, float delta_t,
                                        bool up_kick, acceleration_function a) noexcept {
   const float dt{1.0f / 60.0f};
-  const float dt2{dt * dt};
 
   static float elapsed{0.0f};
   elapsed += delta_t;
@@ -95,7 +94,7 @@ static inline void update_bird_physics(float y0, float &y_n, float &vy_n, float 
   //  Velocity Verlet method
   if (elapsed > dt) {
     const auto a_n{a(y_n, y0)};
-    y_n = y_n + vy_n * dt + 0.5f * a_n * dt2;
+    y_n = y_n + vy_n * dt + 0.5f * a_n * dt * dt;
     const auto a_np1{a(y_n, y0)};
     vy_n = vy_n + 0.5f * (a_n + a_np1) * dt;
     elapsed -= dt;
@@ -198,9 +197,7 @@ static inline auto update_collision(const glm::mat4 &bird_model, const glm::vec2
   // TODO: Fix this
   const auto bird_bottom{bird_pos[1] + bird_bbox[1]};
   const auto base_top{base_pos[1]};
-  const auto bird_base_distance{fabs(base_top - bird_bottom)};
-  collision |= (bird_base_distance < 1.0e-6f);
-  log_info("bird-base distance {}. Collided {}", bird_base_distance, collision);
+  collision |= (bird_bottom > base_top) || ((base_top - bird_bottom) < 1.0e-1f);
 
   // Pipe collision: Construct the pipe rects and check bird-pipe for each pipe
   for (const auto &pipe_down_pos : pipe_queue) {

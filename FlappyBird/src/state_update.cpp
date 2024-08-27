@@ -211,6 +211,39 @@ static inline auto update_collision(const glm::mat4 &bird_model, const glm::vec2
   return collision;
 }
 
+static inline int sign(float x) {
+  if (x > 0.0f) {
+    return 1;
+  } else if (x < 0.0f) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+static inline void compute_score(const pipe_queue_t &pipe_queue, const glm::vec2 &pipe_bbox,
+                                 const glm::vec2 &bird_origin, surge::u64 &score) noexcept {
+  // Get the right x value of the leftmost pipe
+  const auto pipe_right_x{pipe_queue.front()[0] + pipe_bbox[0]};
+
+  // Get the bird x
+  const auto bird_x{bird_origin[0]};
+
+  // Bird - pipe distance
+  const auto distance{pipe_right_x - bird_x};
+
+  // Distance signs
+  const auto curr_dist_sign{sign(distance)};
+  static auto prev_dist_sign{curr_dist_sign};
+
+  // If there is a + to - sign shift, we score
+  if (curr_dist_sign == -1 && prev_dist_sign == 1) {
+    score += 1;
+  }
+
+  prev_dist_sign = curr_dist_sign;
+}
+
 static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                         const glm::vec2 &window_dims, const glm::vec2 &base_bbox,
                                         const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
@@ -235,7 +268,8 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                      const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
                                      const glm::vec2 &original_bird_sheet_size,
                                      const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
-                                     pipe_queue_t &pipe_queue, float delta_t) noexcept -> bool {
+                                     pipe_queue_t &pipe_queue, surge::u64 &score,
+                                     float delta_t) noexcept -> bool {
   // Database reset
   sdb.reset();
 
@@ -257,13 +291,25 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   const auto bird_model{update_bird(tdb, sdb, bird_origin, bird_bbox, original_bird_sheet_size,
                                     delta_t, up_kick, gravity)};
 
+  // Update collisions
+  const auto collided{
+      update_collision(bird_model, bird_bbox, base_pos, pipe_gaps, pipe_bbox, pipe_queue)};
+
+  // Update score
+  if (!collided) {
+    compute_score(pipe_queue, pipe_bbox, bird_origin, score);
+  }
+
   // Refresh click cache
   old_click_state = surge::window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
 
-  return update_collision(bird_model, bird_bbox, base_pos, pipe_gaps, pipe_bbox, pipe_queue);
+  return collided;
 }
 
-static inline void update_score() {}
+static inline void update_score(const surge::u8 &score) {
+  log_info("Player scored {}", score);
+  // TODO
+}
 
 void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a,
                                       state &state_b, double delta_t) noexcept {
@@ -317,6 +363,9 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
     pipe_queue.emplace_back(new_pipe);
   }
 
+  // Game score
+  static surge::u64 score{0};
+
   // State switch
   switch (state_a) {
 
@@ -331,7 +380,8 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
 
   case state::play:
     if (update_state_play(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
-                          original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue, fdelta_t)) {
+                          original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue, score,
+                          fdelta_t)) {
       state_b = state::score;
 
       sdb.wait_idle();
@@ -340,7 +390,7 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
     break;
 
   case state::score:
-    update_score();
+    update_score(score);
     break;
 
   default:

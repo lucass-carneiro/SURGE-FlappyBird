@@ -41,8 +41,19 @@ extern "C" SURGE_MODULE_EXPORT auto on_load() noexcept -> int {
   // Load game resources
   texture::create_info ci{};
   ci.filtering = texture::texture_filtering::nearest;
-  globals::tdb.add(ci, "resources/static/base.png", "resources/static/background-day.png",
-                   "resources/sheets/bird_red.png", "resources/static/pipe-green.png");
+
+  // clang-format off
+  globals::tdb.add(
+    ci,
+    "resources/static/base.png",
+    "resources/static/background-day.png",
+    "resources/sheets/bird_red.png",
+    "resources/static/pipe-green.png",
+    "resources/text/instructions_1.png",
+    "resources/text/instructions_2.png",
+    "resources/text/gameover.png"
+  );
+  // clang-format on
 
   // First state
   globals::state_b = state::prepare;

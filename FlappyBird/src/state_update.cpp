@@ -244,10 +244,50 @@ static inline void compute_score(const pipe_queue_t &pipe_queue, const glm::vec2
   prev_dist_sign = curr_dist_sign;
 }
 
+static inline void update_instructions_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
+                                           const glm::vec2 &window_dims,
+                                           const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
+                                           const glm::vec2 &instructions_1_bbox,
+                                           const glm::vec2 &instructions_2_bbox) noexcept {
+  using namespace surge::gl_atom;
+
+  const static auto instructions_1_texture{
+      tdb.find("resources/text/instructions_1.png").value_or(0)};
+
+  const static auto instructions_2_texture{
+      tdb.find("resources/text/instructions_2.png").value_or(0)};
+
+  const glm::vec2 instructions_1_pos{(window_dims[0] - instructions_1_bbox[0]) / 2.0f, 0.0f};
+  const auto instructions_1_model{sprite::place(instructions_1_pos, instructions_1_bbox, 0.5f)};
+
+  const glm::vec2 bird_center{bird_origin - bird_bbox / 2.0f};
+  const glm::vec2 instructions_2_pos{bird_center[0] - instructions_2_bbox[0] / 2.0f,
+                                     bird_origin[1] + 60.0f};
+  const auto instructions_2_model{sprite::place(instructions_2_pos, instructions_1_bbox, 0.5f)};
+
+  sdb.add(instructions_1_texture, instructions_1_model, 1.0);
+  sdb.add(instructions_2_texture, instructions_2_model, 1.0);
+}
+
+static inline void update_game_over_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
+                                        const glm::vec2 &window_dims,
+                                        const glm::vec2 &game_over_bbox) noexcept {
+  using namespace surge::gl_atom;
+
+  const static auto game_over_texture{tdb.find("resources/text/gameover.png").value_or(0)};
+
+  const auto game_over_pos{(window_dims - game_over_bbox) / 2.0f};
+  const auto game_over_model{sprite::place(game_over_pos, game_over_bbox, 0.5f)};
+
+  sdb.add(game_over_texture, game_over_model, 1.0);
+}
+
 static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                         const glm::vec2 &window_dims, const glm::vec2 &base_bbox,
                                         const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
                                         const glm::vec2 &original_bird_sheet_size,
+                                        const glm::vec2 &instructions_1_bbox,
+                                        const glm::vec2 &instructions_2_bbox,
                                         float delta_t) noexcept {
   // Database reset
   sdb.reset();
@@ -261,6 +301,10 @@ static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   // Bird
   update_bird(tdb, sdb, bird_origin, bird_bbox, original_bird_sheet_size, delta_t, false,
               harmonic_oscillator);
+
+  // Instructions
+  update_instructions_msg(tdb, sdb, window_dims, bird_origin, bird_bbox, instructions_1_bbox,
+                          instructions_2_bbox);
 }
 
 static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
@@ -268,8 +312,8 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                      const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
                                      const glm::vec2 &original_bird_sheet_size,
                                      const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
-                                     pipe_queue_t &pipe_queue, surge::u64 &score,
-                                     float delta_t) noexcept -> bool {
+                                     pipe_queue_t &pipe_queue, const glm::vec2 &game_over_bbox,
+                                     surge::u64 &score, float delta_t) noexcept -> bool {
   // Database reset
   sdb.reset();
 
@@ -298,6 +342,9 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   // Update score
   if (!collided) {
     compute_score(pipe_queue, pipe_bbox, bird_origin, score);
+    // TODO: Update score msg
+  } else {
+    update_game_over_msg(tdb, sdb, window_dims, game_over_bbox);
   }
 
   // Refresh click cache
@@ -306,10 +353,7 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   return collided;
 }
 
-static inline void update_score(const surge::u8 &score) {
-  log_info("Player scored {}", score);
-  // TODO
-}
+static inline void update_score() {}
 
 void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a,
                                       state &state_b, double delta_t) noexcept {
@@ -327,6 +371,10 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
 
   const glm::vec2 original_bird_sheet_size{141.0f, 26.0f};
 
+  const glm::vec2 original_instructions_1_size{184.0f, 152.0f};
+  const glm::vec2 original_instructions_2_size{114.0f, 60.0f};
+  const glm::vec2 original_game_over_size{192.0f, 42.0f};
+
   const auto window_dims{window::get_dims()};
   const auto scale_factor{window_dims / original_window_size};
 
@@ -341,6 +389,13 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
   // Pipe sizes
   const glm::vec2 pipe_gaps{window_dims[0] / 2.0f, 150.0f};
   const glm::vec2 pipe_bbox{original_pipe_bbox[0] * scale_factor[0], window_dims[1]};
+
+  // Instructions size
+  const auto instructions_1_bbox{original_instructions_1_size * scale_factor};
+  const glm::vec2 instructions_2_bbox{original_instructions_2_size * scale_factor};
+
+  // Game over screen size
+  const auto game_over_bbox{original_game_over_size * scale_factor};
 
   // Allowed pipe y range
   const float allowed_pipe_area_fraction{(window_dims[1] - base_bbox[1]) / 4.0f};
@@ -371,7 +426,8 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
 
   case state::prepare:
     update_state_prepare(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
-                         original_bird_sheet_size, fdelta_t);
+                         original_bird_sheet_size, instructions_1_bbox, instructions_2_bbox,
+                         fdelta_t);
 
     if (window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
       state_b = state::play;
@@ -380,17 +436,15 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
 
   case state::play:
     if (update_state_play(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
-                          original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue, score,
-                          fdelta_t)) {
-      state_b = state::score;
-
+                          original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue,
+                          game_over_bbox, score, fdelta_t)) {
       sdb.wait_idle();
-      surge::renderer::gl::wait_idle();
+      state_b = state::score;
     }
     break;
 
   case state::score:
-    update_score(score);
+    update_score();
     break;
 
   default:

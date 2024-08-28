@@ -325,6 +325,11 @@ static inline void update_score_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   auto score_cursor{score_end_x - numbers_bbox[0]};
   auto local_score{score};
 
+  if (local_score == 0) {
+    sdb.add(texture_0, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+    return;
+  }
+
   while (local_score > 0) {
     const auto digit{local_score % 10};
 

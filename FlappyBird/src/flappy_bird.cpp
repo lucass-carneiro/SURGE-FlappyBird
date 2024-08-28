@@ -51,7 +51,17 @@ extern "C" SURGE_MODULE_EXPORT auto on_load() noexcept -> int {
     "resources/static/pipe-green.png",
     "resources/text/instructions_1.png",
     "resources/text/instructions_2.png",
-    "resources/text/gameover.png"
+    "resources/text/gameover.png",
+    "resources/numbers/0.png",
+    "resources/numbers/1.png",
+    "resources/numbers/2.png",
+    "resources/numbers/3.png",
+    "resources/numbers/4.png",
+    "resources/numbers/5.png",
+    "resources/numbers/6.png",
+    "resources/numbers/7.png",
+    "resources/numbers/8.png",
+    "resources/numbers/9.png"
   );
   // clang-format on
 

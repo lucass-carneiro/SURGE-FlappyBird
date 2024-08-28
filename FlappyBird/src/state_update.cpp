@@ -6,6 +6,41 @@ using pipe_queue_t = surge::deque<glm::vec2>;
 
 using acceleration_function = float (*)(float y, float y0);
 
+static inline auto sign(float x) noexcept -> int {
+  if (x > 0.0f) {
+    return 1;
+  } else if (x < 0.0f) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+static inline auto num_digits(surge::u64 number) noexcept -> surge::u64 {
+  // 18,446,744,073,709,551,615
+  if (number <= 9) {
+    return 1;
+  } else if (number <= 99) {
+    return 2;
+  } else if (number <= 999) {
+    return 3;
+  } else if (number <= 9999) {
+    return 4;
+  } else if (number <= 99999) {
+    return 5;
+  } else if (number <= 999999) {
+    return 6;
+  } else if (number <= 9999999) {
+    return 7;
+  } else if (number <= 99999999) {
+    return 8;
+  } else if (number <= 999999999) {
+    return 9;
+  } else if (number <= 9999999999) {
+    return 10;
+  }
+}
+
 static inline auto harmonic_oscillator(float y, float y0) -> float { return -50.0f * (y - y0); }
 static inline auto gravity(float, float) -> float { return 1000.0f; }
 
@@ -211,16 +246,6 @@ static inline auto update_collision(const glm::mat4 &bird_model, const glm::vec2
   return collision;
 }
 
-static inline int sign(float x) {
-  if (x > 0.0f) {
-    return 1;
-  } else if (x < 0.0f) {
-    return -1;
-  } else {
-    return 0;
-  }
-}
-
 static inline void compute_score(const pipe_queue_t &pipe_queue, const glm::vec2 &pipe_bbox,
                                  const glm::vec2 &bird_origin, surge::u64 &score) noexcept {
   // Get the right x value of the leftmost pipe
@@ -251,10 +276,10 @@ static inline void update_instructions_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sd
                                            const glm::vec2 &instructions_2_bbox) noexcept {
   using namespace surge::gl_atom;
 
-  const static auto instructions_1_texture{
+  static const auto instructions_1_texture{
       tdb.find("resources/text/instructions_1.png").value_or(0)};
 
-  const static auto instructions_2_texture{
+  static const auto instructions_2_texture{
       tdb.find("resources/text/instructions_2.png").value_or(0)};
 
   const glm::vec2 instructions_1_pos{(window_dims[0] - instructions_1_bbox[0]) / 2.0f, 0.0f};
@@ -269,12 +294,97 @@ static inline void update_instructions_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sd
   sdb.add(instructions_2_texture, instructions_2_model, 1.0);
 }
 
+static inline void update_score_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
+                                    const glm::vec2 &window_dims, const glm::vec2 &numbers_bbox,
+                                    const surge::u64 &score) noexcept {
+  using namespace surge::gl_atom;
+
+  static const auto texture_0{tdb.find("resources/numbers/0.png").value_or(0)};
+  static const auto texture_1{tdb.find("resources/numbers/1.png").value_or(0)};
+  static const auto texture_2{tdb.find("resources/numbers/2.png").value_or(0)};
+  static const auto texture_3{tdb.find("resources/numbers/3.png").value_or(0)};
+  static const auto texture_4{tdb.find("resources/numbers/4.png").value_or(0)};
+  static const auto texture_5{tdb.find("resources/numbers/5.png").value_or(0)};
+  static const auto texture_6{tdb.find("resources/numbers/6.png").value_or(0)};
+  static const auto texture_7{tdb.find("resources/numbers/7.png").value_or(0)};
+  static const auto texture_8{tdb.find("resources/numbers/8.png").value_or(0)};
+  static const auto texture_9{tdb.find("resources/numbers/9.png").value_or(0)};
+
+  // Score total width
+  const auto socre_digits{num_digits(score)};
+  const auto score_width{numbers_bbox[1] * static_cast<float>(socre_digits)};
+
+  // Score start and end
+  const auto score_start_x{(window_dims[0] - score_width) / 2.0f};
+  const auto score_end_x{score_start_x + score_width};
+
+  // Score y
+  const auto score_y{window_dims[1] / 10.0f};
+
+  // Loop over score digits, lowest to highest
+  auto score_cursor{score_end_x - numbers_bbox[0]};
+  auto local_score{score};
+
+  while (local_score > 0) {
+    const auto digit{local_score % 10};
+
+    switch (digit) {
+
+    case 0:
+      sdb.add(texture_0, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 1:
+      sdb.add(texture_1, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 2:
+      sdb.add(texture_2, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 3:
+      sdb.add(texture_3, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 4:
+      sdb.add(texture_4, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 5:
+      sdb.add(texture_5, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 6:
+      sdb.add(texture_6, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 7:
+      sdb.add(texture_7, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 8:
+      sdb.add(texture_8, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    case 9:
+      sdb.add(texture_9, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      break;
+
+    default:
+      break;
+    }
+
+    local_score /= 10;
+    score_cursor -= numbers_bbox[0];
+  }
+}
+
 static inline void update_game_over_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                         const glm::vec2 &window_dims,
                                         const glm::vec2 &game_over_bbox) noexcept {
   using namespace surge::gl_atom;
 
-  const static auto game_over_texture{tdb.find("resources/text/gameover.png").value_or(0)};
+  static const auto game_over_texture{tdb.find("resources/text/gameover.png").value_or(0)};
 
   const auto game_over_pos{(window_dims - game_over_bbox) / 2.0f};
   const auto game_over_model{sprite::place(game_over_pos, game_over_bbox, 0.5f)};
@@ -313,7 +423,8 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                      const glm::vec2 &original_bird_sheet_size,
                                      const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
                                      pipe_queue_t &pipe_queue, const glm::vec2 &game_over_bbox,
-                                     surge::u64 &score, float delta_t) noexcept -> bool {
+                                     const glm::vec2 &numbers_bbox, surge::u64 &score,
+                                     float delta_t) noexcept -> bool {
   // Database reset
   sdb.reset();
 
@@ -342,10 +453,11 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   // Update score
   if (!collided) {
     compute_score(pipe_queue, pipe_bbox, bird_origin, score);
-    // TODO: Update score msg
   } else {
     update_game_over_msg(tdb, sdb, window_dims, game_over_bbox);
   }
+
+  update_score_msg(tdb, sdb, window_dims, numbers_bbox, score);
 
   // Refresh click cache
   old_click_state = surge::window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
@@ -375,6 +487,8 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
   const glm::vec2 original_instructions_2_size{114.0f, 60.0f};
   const glm::vec2 original_game_over_size{192.0f, 42.0f};
 
+  const glm::vec2 original_numnbers_size{24.0f, 36.0f};
+
   const auto window_dims{window::get_dims()};
   const auto scale_factor{window_dims / original_window_size};
 
@@ -396,6 +510,9 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
 
   // Game over screen size
   const auto game_over_bbox{original_game_over_size * scale_factor};
+
+  // Score numbers size
+  const auto numbers_bbox{original_numnbers_size * scale_factor};
 
   // Allowed pipe y range
   const float allowed_pipe_area_fraction{(window_dims[1] - base_bbox[1]) / 4.0f};
@@ -437,7 +554,7 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
   case state::play:
     if (update_state_play(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
                           original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue,
-                          game_over_bbox, score, fdelta_t)) {
+                          game_over_bbox, numbers_bbox, score, fdelta_t)) {
       sdb.wait_idle();
       state_b = state::score;
     }

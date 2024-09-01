@@ -38,6 +38,8 @@ static inline auto num_digits(surge::u64 number) noexcept -> surge::u64 {
     return 9;
   } else if (number <= 9999999999) {
     return 10;
+  } else {
+    return 11;
   }
 }
 
@@ -98,8 +100,8 @@ static inline auto update_bird_flap_animation_frame(float delta_t) noexcept -> g
       glm::vec4{1.0f, 1.0f, 34.0f, 24.0f}, glm::vec4{36.0f, 1.0f, 34.0f, 24.0f},
       glm::vec4{71.0f, 1.0f, 34.0f, 24.0f}, glm::vec4{106.0f, 1.0f, 34.0f, 24.0f}};
 
-  static const float frame_rate{10.0};
-  static const float wait_time{1.0 / frame_rate};
+  static const float frame_rate{10.0f};
+  static const float wait_time{1.0f / frame_rate};
 
   static surge::u8 frame_idx{0};
   static float elapsed{0.0f};

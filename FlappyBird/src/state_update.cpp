@@ -53,7 +53,7 @@ static inline void update_background(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   static const auto bckg_texture{tdb.find("resources/static/background-day.png").value_or(0)};
   const auto bckg_model{sprite::place(glm::vec2{0.0f}, window_dims, 0.1f)};
 
-  sdb.add(bckg_texture, bckg_model, 1.0);
+  sprite_database::add(sdb, bckg_texture, bckg_model, 1.0);
 }
 
 static inline void update_rolling_base(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
@@ -91,8 +91,8 @@ static inline void update_rolling_base(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   const auto base_model_l{sprite::place(base_corner_l, base_bbox, 0.2f)};
   const auto base_model_r{sprite::place(base_corner_r, base_bbox, 0.2f)};
 
-  sdb.add(base_texture, base_model_l, 1.0);
-  sdb.add(base_texture, base_model_r, 1.0);
+  sprite_database::add(sdb, base_texture, base_model_l, 1.0);
+  sprite_database::add(sdb, base_texture, base_model_r, 1.0);
 }
 
 static inline auto update_bird_flap_animation_frame(float delta_t) noexcept -> glm::vec4 {
@@ -154,7 +154,8 @@ static inline auto update_bird(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const glm
   const glm::vec2 bird_pos{bird_origin[0], y_n};
   const auto bird_model{surge::gl_atom::sprite::place(bird_pos, bird_bbox, 0.3f)};
 
-  sdb.add_view(bird_sheet, bird_model, flap_frame_view, original_bird_sheet_size, 1.0f);
+  surge::gl_atom::sprite_database::add_view(sdb, bird_sheet, bird_model, flap_frame_view,
+                                            original_bird_sheet_size, 1.0f);
 
   return bird_model;
 }
@@ -182,8 +183,8 @@ static inline void update_pipes(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, float de
                                    glm::radians(180.0f), glm::vec3{0.0f, 0.0f, 1.0f}),
                        glm::vec3{-1.0f, 0.0f, 0.0f})};
 
-    sdb.add(pipe_handle, pipe_down, 1.0f);
-    sdb.add(pipe_handle, pipe_up, 1.0f);
+    sprite_database::add(sdb, pipe_handle, pipe_down, 1.0f);
+    sprite_database::add(sdb, pipe_handle, pipe_up, 1.0f);
 
     // Update pipe position
     if (elapsed > dt) {
@@ -292,8 +293,8 @@ static inline void update_instructions_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sd
                                      bird_origin[1] + 60.0f};
   const auto instructions_2_model{sprite::place(instructions_2_pos, instructions_1_bbox, 0.5f)};
 
-  sdb.add(instructions_1_texture, instructions_1_model, 1.0);
-  sdb.add(instructions_2_texture, instructions_2_model, 1.0);
+  sprite_database::add(sdb, instructions_1_texture, instructions_1_model, 1.0);
+  sprite_database::add(sdb, instructions_2_texture, instructions_2_model, 1.0);
 }
 
 static inline void update_score_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
@@ -328,7 +329,8 @@ static inline void update_score_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   auto local_score{score};
 
   if (local_score == 0) {
-    sdb.add(texture_0, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+    sprite_database::add(sdb, texture_0,
+                         sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
     return;
   }
 
@@ -338,43 +340,53 @@ static inline void update_score_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
     switch (digit) {
 
     case 0:
-      sdb.add(texture_0, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_0, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 1:
-      sdb.add(texture_1, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_1, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 2:
-      sdb.add(texture_2, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_2, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 3:
-      sdb.add(texture_3, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_3, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 4:
-      sdb.add(texture_4, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_4, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 5:
-      sdb.add(texture_5, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_5, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 6:
-      sdb.add(texture_6, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_6, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 7:
-      sdb.add(texture_7, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_7, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 8:
-      sdb.add(texture_8, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_8, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 9:
-      sdb.add(texture_9, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+      sprite_database::add(
+          sdb, texture_9, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     default:
@@ -396,7 +408,7 @@ static inline void update_game_over_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   const auto game_over_pos{(window_dims - game_over_bbox) / 2.0f};
   const auto game_over_model{sprite::place(game_over_pos, game_over_bbox, 0.5f)};
 
-  sdb.add(game_over_texture, game_over_model, 1.0);
+  sprite_database::add(sdb, game_over_texture, game_over_model, 1.0);
 }
 
 static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
@@ -407,7 +419,7 @@ static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                         const glm::vec2 &instructions_2_bbox,
                                         float delta_t) noexcept {
   // Database reset
-  sdb.reset();
+  surge::gl_atom::sprite_database::begin_add(sdb);
 
   // Background
   update_background(tdb, sdb, window_dims);
@@ -429,11 +441,10 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                      const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
                                      const glm::vec2 &original_bird_sheet_size,
                                      const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
-                                     pipe_queue_t &pipe_queue, const glm::vec2 &game_over_bbox,
-                                     const glm::vec2 &numbers_bbox, surge::u64 &score,
-                                     float delta_t) noexcept -> bool {
+                                     pipe_queue_t &pipe_queue, const glm::vec2 &numbers_bbox,
+                                     surge::u64 &score, float delta_t) noexcept -> bool {
   // Database reset
-  sdb.reset();
+  surge::gl_atom::sprite_database::begin_add(sdb);
 
   // Background
   update_background(tdb, sdb, window_dims);
@@ -460,8 +471,6 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   // Update score
   if (!collided) {
     compute_score(pipe_queue, pipe_bbox, bird_origin, score);
-  } else {
-    update_game_over_msg(tdb, sdb, window_dims, game_over_bbox);
   }
 
   update_score_msg(tdb, sdb, window_dims, numbers_bbox, score);
@@ -472,7 +481,24 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   return collided;
 }
 
-static inline void update_score() {}
+static inline void update_score(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
+                                const glm::vec2 &window_dims, const glm::vec2 &base_bbox,
+                                const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
+                                const glm::vec2 &original_bird_sheet_size,
+                                const glm::vec2 &pipe_gaps, const glm::vec2 &pipe_bbox,
+                                pipe_queue_t &pipe_queue, const glm::vec2 &numbers_bbox,
+                                const glm::vec2 &game_over_bbox, surge::u64 &score) {
+  const float delta_t{0.0f};
+
+  surge::gl_atom::sprite_database::begin_add(sdb);
+
+  update_background(tdb, sdb, window_dims);
+  update_rolling_base(tdb, sdb, window_dims, base_bbox, delta_t);
+  update_pipes(tdb, sdb, delta_t, pipe_gaps, pipe_bbox, pipe_queue);
+  update_bird(tdb, sdb, bird_origin, bird_bbox, original_bird_sheet_size, delta_t, false, gravity);
+  update_score_msg(tdb, sdb, window_dims, numbers_bbox, score);
+  update_game_over_msg(tdb, sdb, window_dims, game_over_bbox);
+}
 
 void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a,
                                       state &state_b, double delta_t) noexcept {
@@ -560,15 +586,16 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
 
   case state::play:
     if (update_state_play(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
-                          original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue,
-                          game_over_bbox, numbers_bbox, score, fdelta_t)) {
-      sdb.wait_idle();
+                          original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue, numbers_bbox,
+                          score, fdelta_t)) {
+      gl_atom::sprite_database::wait_idle(sdb);
       state_b = state::score;
     }
     break;
 
   case state::score:
-    update_score();
+    update_score(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox, original_bird_sheet_size,
+                 pipe_gaps, pipe_bbox, pipe_queue, numbers_bbox, game_over_bbox, score);
     break;
 
   default:

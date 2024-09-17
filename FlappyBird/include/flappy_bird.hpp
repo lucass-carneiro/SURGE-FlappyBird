@@ -19,7 +19,7 @@ namespace fpb {
 using pvubo_t = surge::gl_atom::pv_ubo::buffer;
 
 using tdb_t = surge::gl_atom::texture::database;
-using sdb_t = surge::gl_atom::sprite::database;
+using sdb_t = surge::gl_atom::sprite_database::database;
 
 namespace state_machine {
 

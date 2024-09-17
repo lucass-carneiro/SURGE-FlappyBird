@@ -21,7 +21,8 @@ extern "C" SURGE_MODULE_EXPORT auto on_load() noexcept -> int {
   globals::tdb = texture::database::create(128);
 
   // Sprite database
-  auto sdb{sprite::database::create(128)};
+  const sprite_database::database_create_info sdb_ci{.max_sprites = 16, .buffer_redundancy = 3};
+  auto sdb{sprite_database::create(sdb_ci)};
   if (!sdb) {
     log_error("Unable to create sprite database");
     return static_cast<int>(sdb.error());
@@ -75,14 +76,14 @@ extern "C" SURGE_MODULE_EXPORT auto on_load() noexcept -> int {
 extern "C" SURGE_MODULE_EXPORT auto on_unload() noexcept -> int {
   surge::renderer::gl::wait_idle();
   globals::pv_ubo.destroy();
-  globals::sdb.destroy();
+  surge::gl_atom::sprite_database::destroy(globals::sdb);
   globals::tdb.destroy();
   return 0;
 }
 
 extern "C" SURGE_MODULE_EXPORT auto draw() noexcept -> int {
   globals::pv_ubo.bind_to_location(2);
-  globals::sdb.draw();
+  surge::gl_atom::sprite_database::draw(globals::sdb);
   return 0;
 }
 

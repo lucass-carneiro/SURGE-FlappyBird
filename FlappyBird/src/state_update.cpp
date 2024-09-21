@@ -51,7 +51,7 @@ static inline void update_background(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   using namespace surge::gl_atom;
 
   static const auto bckg_texture{tdb.find("resources/static/background-day.png").value_or(0)};
-  const auto bckg_model{sprite::place(glm::vec2{0.0f}, window_dims, 0.1f)};
+  const auto bckg_model{sprite_database::place_sprite(glm::vec2{0.0f}, window_dims, 0.1f)};
 
   sprite_database::add(sdb, bckg_texture, bckg_model, 1.0);
 }
@@ -88,8 +88,8 @@ static inline void update_rolling_base(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
     base_corner_l[0] = 0.0f;
   }
 
-  const auto base_model_l{sprite::place(base_corner_l, base_bbox, 0.2f)};
-  const auto base_model_r{sprite::place(base_corner_r, base_bbox, 0.2f)};
+  const auto base_model_l{sprite_database::place_sprite(base_corner_l, base_bbox, 0.2f)};
+  const auto base_model_r{sprite_database::place_sprite(base_corner_r, base_bbox, 0.2f)};
 
   sprite_database::add(sdb, base_texture, base_model_l, 1.0);
   sprite_database::add(sdb, base_texture, base_model_r, 1.0);
@@ -142,6 +142,7 @@ static inline auto update_bird(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const glm
                                const glm::vec2 &bird_bbox,
                                const glm::vec2 &original_bird_sheet_size, float delta_t,
                                bool up_kick, acceleration_function a) noexcept -> glm::mat4 {
+  using namespace surge::gl_atom;
 
   static const auto bird_sheet{tdb.find("resources/sheets/bird_red.png").value_or(0)};
 
@@ -152,7 +153,7 @@ static inline auto update_bird(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const glm
   update_bird_physics(bird_origin[1], y_n, vy_n, delta_t, up_kick, a);
 
   const glm::vec2 bird_pos{bird_origin[0], y_n};
-  const auto bird_model{surge::gl_atom::sprite::place(bird_pos, bird_bbox, 0.3f)};
+  const auto bird_model{sprite_database::place_sprite(bird_pos, bird_bbox, 0.3f)};
 
   surge::gl_atom::sprite_database::add_view(sdb, bird_sheet, bird_model, flap_frame_view,
                                             original_bird_sheet_size, 1.0f);
@@ -177,9 +178,9 @@ static inline void update_pipes(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, float de
     // Place pipe sprites
     const glm::vec2 pipe_up_pos{pipe_down_pos[0], pipe_down_pos[1] - pipe_gaps[1]};
 
-    const auto pipe_down{sprite::place(pipe_down_pos, pipe_bbox, 0.15f)};
+    const auto pipe_down{sprite_database::place_sprite(pipe_down_pos, pipe_bbox, 0.15f)};
     const auto pipe_up{
-        glm::translate(glm::rotate(sprite::place(pipe_up_pos, pipe_bbox, 0.15f),
+        glm::translate(glm::rotate(sprite_database::place_sprite(pipe_up_pos, pipe_bbox, 0.15f),
                                    glm::radians(180.0f), glm::vec3{0.0f, 0.0f, 1.0f}),
                        glm::vec3{-1.0f, 0.0f, 0.0f})};
 
@@ -286,12 +287,14 @@ static inline void update_instructions_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sd
       tdb.find("resources/text/instructions_2.png").value_or(0)};
 
   const glm::vec2 instructions_1_pos{(window_dims[0] - instructions_1_bbox[0]) / 2.0f, 0.0f};
-  const auto instructions_1_model{sprite::place(instructions_1_pos, instructions_1_bbox, 0.5f)};
+  const auto instructions_1_model{
+      sprite_database::place_sprite(instructions_1_pos, instructions_1_bbox, 0.5f)};
 
   const glm::vec2 bird_center{bird_origin - bird_bbox / 2.0f};
   const glm::vec2 instructions_2_pos{bird_center[0] - instructions_2_bbox[0] / 2.0f,
                                      bird_origin[1] + 60.0f};
-  const auto instructions_2_model{sprite::place(instructions_2_pos, instructions_1_bbox, 0.5f)};
+  const auto instructions_2_model{
+      sprite_database::place_sprite(instructions_2_pos, instructions_1_bbox, 0.5f)};
 
   sprite_database::add(sdb, instructions_1_texture, instructions_1_model, 1.0);
   sprite_database::add(sdb, instructions_2_texture, instructions_2_model, 1.0);
@@ -329,8 +332,9 @@ static inline void update_score_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   auto local_score{score};
 
   if (local_score == 0) {
-    sprite_database::add(sdb, texture_0,
-                         sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+    sprite_database::add(
+        sdb, texture_0,
+        sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
     return;
   }
 
@@ -341,52 +345,62 @@ static inline void update_score_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
 
     case 0:
       sprite_database::add(
-          sdb, texture_0, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_0,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 1:
       sprite_database::add(
-          sdb, texture_1, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_1,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 2:
       sprite_database::add(
-          sdb, texture_2, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_2,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 3:
       sprite_database::add(
-          sdb, texture_3, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_3,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 4:
       sprite_database::add(
-          sdb, texture_4, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_4,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 5:
       sprite_database::add(
-          sdb, texture_5, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_5,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 6:
       sprite_database::add(
-          sdb, texture_6, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_6,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 7:
       sprite_database::add(
-          sdb, texture_7, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_7,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 8:
       sprite_database::add(
-          sdb, texture_8, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_8,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     case 9:
       sprite_database::add(
-          sdb, texture_9, sprite::place(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
+          sdb, texture_9,
+          sprite_database::place_sprite(glm::vec2{score_cursor, score_y}, numbers_bbox, 0.5f), 1.0);
       break;
 
     default:
@@ -406,7 +420,7 @@ static inline void update_game_over_msg(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   static const auto game_over_texture{tdb.find("resources/text/gameover.png").value_or(0)};
 
   const auto game_over_pos{(window_dims - game_over_bbox) / 2.0f};
-  const auto game_over_model{sprite::place(game_over_pos, game_over_bbox, 0.5f)};
+  const auto game_over_model{sprite_database::place_sprite(game_over_pos, game_over_bbox, 0.5f)};
 
   sprite_database::add(sdb, game_over_texture, game_over_model, 1.0);
 }

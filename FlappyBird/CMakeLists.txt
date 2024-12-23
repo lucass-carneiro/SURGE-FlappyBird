@@ -16,8 +16,6 @@ project(
 
 set(
   SURGE_MODULE_FLAPPY_BIRD_HEADER_LIST
-  "${SurgeCore_SOURCE_DIR}/include/surge_core.hpp"
-
   "${PROJECT_SOURCE_DIR}/include/flappy_bird.hpp"
 )
 

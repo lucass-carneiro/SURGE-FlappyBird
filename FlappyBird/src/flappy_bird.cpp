@@ -1,5 +1,7 @@
 #include "flappy_bird.hpp"
 
+#include "sc_glm_includes.hpp"
+
 namespace globals {
 
 static fpb::tdb_t tdb{};      // NOLINT
@@ -11,7 +13,7 @@ static fpb::state_machine::state state_b{}; // NOLINT
 
 } // namespace globals
 
-extern "C" SURGE_MODULE_EXPORT auto on_load() noexcept -> int {
+extern "C" SURGE_MODULE_EXPORT auto gl_on_load(window_t w) noexcept -> int {
   using namespace surge;
   using namespace surge::gl_atom;
   using namespace fpb;
@@ -30,7 +32,7 @@ extern "C" SURGE_MODULE_EXPORT auto on_load() noexcept -> int {
   globals::sdb = *sdb;
 
   // Initialize global 2D projection matrix and view matrix
-  const auto dims{window::get_dims()};
+  const auto dims{window::get_dims(w)};
   const auto projection{glm::ortho(0.0f, dims[0], dims[1], 0.0f, 0.0f, 1.0f)};
   const auto view{glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f),
                               glm::vec3(0.0f, 1.0f, 0.0f))};
@@ -73,7 +75,7 @@ extern "C" SURGE_MODULE_EXPORT auto on_load() noexcept -> int {
   return 0;
 }
 
-extern "C" SURGE_MODULE_EXPORT auto on_unload() noexcept -> int {
+extern "C" SURGE_MODULE_EXPORT auto gl_on_unload(window_t) noexcept -> int {
   surge::renderer::gl::wait_idle();
   globals::pv_ubo.destroy();
   surge::gl_atom::sprite_database::destroy(globals::sdb);
@@ -81,21 +83,21 @@ extern "C" SURGE_MODULE_EXPORT auto on_unload() noexcept -> int {
   return 0;
 }
 
-extern "C" SURGE_MODULE_EXPORT auto draw() noexcept -> int {
+extern "C" SURGE_MODULE_EXPORT auto gl_draw(window_t) noexcept -> int {
   globals::pv_ubo.bind_to_location(2);
   surge::gl_atom::sprite_database::draw(globals::sdb);
   return 0;
 }
 
-extern "C" SURGE_MODULE_EXPORT auto update(double dt) noexcept -> int {
+extern "C" SURGE_MODULE_EXPORT auto gl_update(window_t w, double dt) noexcept -> int {
   using namespace fpb::state_machine;
   state_transition(globals::state_a, globals::state_b);
-  state_update(globals::tdb, globals::sdb, globals::state_a, globals::state_b, dt);
+  state_update(w, globals::tdb, globals::sdb, globals::state_a, globals::state_b, dt);
   return 0;
 }
 
-extern "C" SURGE_MODULE_EXPORT void keyboard_event(int, int, int, int) noexcept {}
+extern "C" SURGE_MODULE_EXPORT void gl_keyboard_event(window_t, int, int, int, int) noexcept {}
 
-extern "C" SURGE_MODULE_EXPORT void mouse_button_event(int, int, int) noexcept {}
+extern "C" SURGE_MODULE_EXPORT void gl_mouse_button_event(window_t, int, int, int) noexcept {}
 
-extern "C" SURGE_MODULE_EXPORT void mouse_scroll_event(double, double) noexcept {}
+extern "C" SURGE_MODULE_EXPORT void gl_mouse_scroll_event(window_t, double, double) noexcept {}

@@ -1,4 +1,5 @@
 #include "flappy_bird.hpp"
+#include "sc_glm_includes.hpp"
 
 #include <cmath>
 
@@ -450,7 +451,7 @@ static inline void update_state_prepare(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                           instructions_2_bbox);
 }
 
-static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
+static inline auto update_state_play(window_t w, const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
                                      const glm::vec2 &window_dims, const glm::vec2 &base_bbox,
                                      const glm::vec2 &bird_origin, const glm::vec2 &bird_bbox,
                                      const glm::vec2 &original_bird_sheet_size,
@@ -472,7 +473,7 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
 
   // Bird
   static auto old_click_state{GLFW_RELEASE}; // We enter this state on a mouse press
-  const auto current_click_state{surge::window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT)};
+  const auto current_click_state{surge::window::get_mouse_button(w, GLFW_MOUSE_BUTTON_LEFT)};
   const auto up_kick{current_click_state == GLFW_PRESS && old_click_state == GLFW_RELEASE};
 
   const auto bird_model{update_bird(tdb, sdb, bird_origin, bird_bbox, original_bird_sheet_size,
@@ -490,7 +491,7 @@ static inline auto update_state_play(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   update_score_msg(tdb, sdb, window_dims, numbers_bbox, score);
 
   // Refresh click cache
-  old_click_state = surge::window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT);
+  old_click_state = surge::window::get_mouse_button(w, GLFW_MOUSE_BUTTON_LEFT);
 
   return collided;
 }
@@ -514,8 +515,9 @@ static inline void update_score(const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
   update_game_over_msg(tdb, sdb, window_dims, game_over_bbox);
 }
 
-void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a,
-                                      state &state_b, double delta_t) noexcept {
+void fpb::state_machine::state_update(window_t w, const fpb::tdb_t &tdb, fpb::sdb_t &sdb,
+                                      const state &state_a, state &state_b,
+                                      double delta_t) noexcept {
   using namespace surge;
   using namespace fpb::state_machine;
 
@@ -536,7 +538,7 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
 
   const glm::vec2 original_numnbers_size{24.0f, 36.0f};
 
-  const auto window_dims{window::get_dims()};
+  const auto window_dims{window::get_dims(w)};
   const auto scale_factor{window_dims / original_window_size};
 
   // Base sizes
@@ -593,13 +595,13 @@ void fpb::state_machine::state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, co
                          original_bird_sheet_size, instructions_1_bbox, instructions_2_bbox,
                          fdelta_t);
 
-    if (window::get_mouse_button(GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+    if (window::get_mouse_button(w, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
       state_b = state::play;
     }
     break;
 
   case state::play:
-    if (update_state_play(tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
+    if (update_state_play(w, tdb, sdb, window_dims, base_bbox, bird_origin, bird_bbox,
                           original_bird_sheet_size, pipe_gaps, pipe_bbox, pipe_queue, numbers_bbox,
                           score, fdelta_t)) {
       gl_atom::sprite_database::wait_idle(sdb);

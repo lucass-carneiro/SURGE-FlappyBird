@@ -1,7 +1,10 @@
 #ifndef SURGE_MODULE_FLAPPY_BIRD_HPP
 #define SURGE_MODULE_FLAPPY_BIRD_HPP
 
-#include "surge_core.hpp"
+#include "sc_opengl/atoms/pv_ubo.hpp"
+#include "sc_opengl/atoms/sprite_database.hpp"
+#include "sc_opengl/atoms/texture.hpp"
+#include "sc_window.hpp"
 
 #if defined(SURGE_COMPILER_Clang)                                                                  \
     || defined(SURGE_COMPILER_GCC) && COMPILING_SURGE_MODULE_FLAPPY_BIRD
@@ -13,6 +16,8 @@
 #else
 #  define SURGE_MODULE_EXPORT
 #endif
+
+using namespace surge::window;
 
 namespace fpb {
 
@@ -27,8 +32,8 @@ using state_t = surge::u32;
 enum state : surge::u32 { no_state, prepare, play, score, count };
 
 void state_transition(state &state_a, state &state_b) noexcept;
-void state_update(const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a, state &state_b,
-                  double dt) noexcept;
+void state_update(window_t w, const fpb::tdb_t &tdb, fpb::sdb_t &sdb, const state &state_a,
+                  state &state_b, double dt) noexcept;
 
 auto state_to_str(const state &s) noexcept -> const char *;
 
@@ -36,17 +41,21 @@ auto state_to_str(const state &s) noexcept -> const char *;
 } // namespace fpb
 
 extern "C" {
-SURGE_MODULE_EXPORT auto on_load() noexcept -> int;
+SURGE_MODULE_EXPORT auto gl_on_load(window_t w) noexcept -> int;
 
-SURGE_MODULE_EXPORT auto on_unload() noexcept -> int;
+SURGE_MODULE_EXPORT auto gl_on_unload(window_t w) noexcept -> int;
 
-SURGE_MODULE_EXPORT auto draw() noexcept -> int;
+SURGE_MODULE_EXPORT auto gl_draw(window_t w) noexcept -> int;
 
-SURGE_MODULE_EXPORT auto update(double dt) noexcept -> int;
+SURGE_MODULE_EXPORT auto gl_update(window_t w, double dt) noexcept -> int;
 
-SURGE_MODULE_EXPORT void keyboard_event(int key, int scancode, int action, int mods) noexcept;
-SURGE_MODULE_EXPORT void mouse_button_event(int button, int action, int mods) noexcept;
-SURGE_MODULE_EXPORT void mouse_scroll_event(double xoffset, double yoffset) noexcept;
+SURGE_MODULE_EXPORT void gl_keyboard_event(window_t w, int key, int scancode, int action,
+                                           int mods) noexcept;
+
+SURGE_MODULE_EXPORT void gl_mouse_button_event(window_t w, int button, int action,
+                                               int mods) noexcept;
+
+SURGE_MODULE_EXPORT void gl_mouse_scroll_event(window_t w, double xoffset, double yoffset) noexcept;
 }
 
 #endif // SURGE_MODULE_FLAPPY_BIRD_HPP
